@@ -1,0 +1,51 @@
+{
+  "status": "local-source-composition-not-registry-release",
+  "originalInputs": "code-recovery-provenance.json",
+  "adaptedFiles": [
+    {
+      "path": "Cargo.lock",
+      "originalSha256": "4fb29a7f06afc57a54757000883812f9d27b056271224c4946f41ba1a2f1226d",
+      "currentSha256": "52476fa18a033582b78db4c0acb907c9bd3500954e3864e1e372f5e5b264f986"
+    },
+    {
+      "path": "Cargo.toml",
+      "originalSha256": "3b1605bd31e67b6a2de8d8006ae2506e7b0ec6721b8475a3ee5ec56eee0a9c27",
+      "currentSha256": "ce2f27512040ba0c620fe265f84317dfd8ba2ea4fb0cb706d5e32f4b9eb21371"
+    },
+    {
+      "path": "bun.lock",
+      "originalSha256": "46f37637b8c8f023e7df44a64158822c3a4809019d113081d70f283b9fa52867",
+      "currentSha256": "5583612f83f746a9547d4749f37c7010a69da418b1825eac064372c250c1cb55"
+    },
+    {
+      "path": "package.json",
+      "originalSha256": "483a9ab2028780c0619ff4b79a509b0f34a4402987ecec3cead8a4e4b2b9aff6",
+      "currentSha256": "813fe36f09a5863e4ae20bc1633e6efe5f9a70a2f460d2b9bef29c85390e7d0f"
+    },
+    {
+      "path": "src/lib.rs",
+      "originalSha256": "b61e23e146d7427d70080c061be1bbad7b921ada673904699c11089111346d12",
+      "currentSha256": "80c2811f6e00551a5fab3554c326e41d9282d1ed422b44079887771b50b1d332"
+    },
+    {
+      "path": "tools/quality/authorized-execution-authority.test.ts",
+      "originalSha256": "705e312368897bc1ecaf0f263ee887291edaa20e13eabdb7fa550e5fc836e7e3",
+      "currentSha256": "b629ddc4787a8d244ac61ebe260175206f2675f8142ec8e739af51ea43d74cfc"
+    },
+    {
+      "path": "tools/quality/rust-coverage-gate.test.ts",
+      "originalSha256": "9b29c69660ac6983fa4222c4447d1f38a5900a4443ff4108f7192703dce58972",
+      "currentSha256": "365d9e1c650b92028775e4b42fe28380310d5769037d89714c31b6b8d67bdf8d"
+    },
+    {
+      "path": "tools/review/package.json",
+      "originalSha256": "cbcba0356cade0cdd61f77ecc336c0ec225900542b1cd5f63cce36a29845f2ef",
+      "currentSha256": "b04c4226d2e88c52e6a70844f44842391fb7938f69d0dd198a83409ebfcd4d01"
+    }
+  ],
+  "notes": [
+    "Existing APIs and package versions retained.",
+    "Local dependency paths are temporary composition inputs; distribution pins remain to finalize.",
+    "No historical deployment workflows activated."
+  ]
+}

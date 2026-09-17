@@ -1,0 +1,1 @@
+Migrated to [`libre-ai/harness`](https://github.com/libre-ai/harness/blob/main/docs/apps/harness.md) (ADR-0018 D3, domain F chantier A, 2026-08-18) — this repository no longer owns the harness specification.

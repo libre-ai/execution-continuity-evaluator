@@ -1,0 +1,25 @@
+[package]
+name = "libre-ai-agent-orchestrator"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.97"
+license = "EUPL-1.2"
+repository = "https://github.com/libre-ai/libre-ai"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"] }
+libre-ai-contract-types = { version = "=0.1.0", path = "../schemas-and-contracts/crates/sdk-rs" }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_jcs = "=0.2.0"
+serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
+sha2 = { version = "=0.11.0", default-features = false }
+
+[workspace]
+
+[[bench]]
+name = "authorized_execution_replay"
+harness = false

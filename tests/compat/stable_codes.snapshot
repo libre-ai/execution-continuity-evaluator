@@ -1,0 +1,137 @@
+# compat-policy snapshot — exhaustive stable code strings this crate renders
+# (project.v1.yaml, phases[0].exit_criteria[compat-policy]). One code per
+# line, order does not matter (tests/compat_surface.rs sorts before
+# comparing). Lines starting with '#' are comments.
+#
+# Scope: ControlRefusal::code (17), SimulatedEffectDecision::code (2),
+# ControlDecision's own codes (2 — apply, idempotent; ControlDecision::Refuse
+# delegates to ControlRefusal and is not double-counted), and BudgetDecision's
+# own codes (3 — CausalStoreUnavailable, PlanIdentityMismatch,
+# PlanBudgetExceeded). BudgetDecision::Chain(_) delegates to
+# OrchestratorEventChainResult::code() from libre-ai/sdk-rs, which owns its
+# own compat policy — out of scope here.
+#
+# A legitimate change to this file requires, in the same commit: bumping the
+# crate version in Cargo.toml and adding an entry to docs/compat/BREAKS.md.
+
+# ControlRefusal (17)
+orchestrator.control.schema-invalid
+orchestrator.control.fingerprint-invalid
+orchestrator.control.time-invalid
+orchestrator.control.expired
+orchestrator.control.idempotency-store-invalid
+orchestrator.control.idempotency-store-unavailable
+orchestrator.control.idempotency-conflict
+orchestrator.control.authorization-store-unavailable
+orchestrator.control.authorization-revoked
+orchestrator.control.run-id-invalid
+orchestrator.control.state-missing
+orchestrator.control.identity-mismatch
+orchestrator.control.stale-revision
+orchestrator.control.preflight-missing
+orchestrator.control.preflight-failed
+orchestrator.control.transition-forbidden
+orchestrator.control.revision-overflow
+
+# SimulatedEffectDecision (2)
+orchestrator.effect.allow
+orchestrator.effect.refuse
+
+# ControlDecision — own codes only (2)
+orchestrator.control.apply
+orchestrator.control.idempotent
+
+# BudgetDecision — own codes only (3)
+causal-store-unavailable
+plan-identity-mismatch
+plan-budget-exceeded
+
+# AuthorizedExecutionRefusal (5)
+orchestrator.authorized-execution.schema-invalid
+orchestrator.authorized-execution.store-unavailable
+orchestrator.authorized-execution.transition-forbidden
+orchestrator.authorized-execution.budget-exceeded
+orchestrator.authorized-execution.arithmetic-overflow
+
+# GraphRefusal (10)
+duplicate-step
+duplicate-edge
+entry-missing
+dangling-edge
+terminal-has-outgoing-edge
+route-missing
+route-ambiguous
+terminal-unreachable
+unreachable-step
+cycle-forbidden
+
+# GraphDecision — own code only (1)
+graph-valid
+
+# GraphTransitionDecision — own code only (1)
+route-selected
+
+# AuthorityRefusal (2)
+graph-policy-invalid
+authority-binding-mismatch
+
+# AuthorityDecision — own code only (1)
+authority-valid
+
+# CausalRefusal (7)
+duplicate-divergent
+identity-mismatch
+generation-stale
+sequence-invalid
+previous-digest-mismatch
+budget-decreased
+budget-arithmetic-invalid
+
+# CausalDecision — own codes only (2)
+event-valid
+idempotent-duplicate
+
+# DecisionRefusal (9)
+organization-mismatch
+attempt-mismatch
+request-replaced
+duplicate-divergent
+request-expired
+request-consumed
+choice-unknown
+actor-unauthorized
+revision-stale
+
+# DecisionDecision — own codes only (2)
+decision-valid
+idempotent-duplicate
+
+# TransferRefusal (6)
+duplicate-divergent
+transfer-expired
+generation-consumed
+identity-mismatch
+generation-stale
+revision-stale
+
+# TransferDecision — own codes only (2)
+transfer-valid
+idempotent-duplicate
+
+# EffectRefusal (11)
+organization-mismatch
+identity-mismatch
+attempt-mismatch
+lineage-administratively-closed
+generation-consumed
+generation-stale
+emission-divergent
+second-emission-for-attempt
+fencing-stale
+executor-unqualified
+predecessor-effects-nonterminal
+
+# EffectDecision — own codes only (3)
+effect-valid
+emission-duplicate
+effect-state-unknown

@@ -1,0 +1,42 @@
+{
+  "name": "@libre-ai/orchestrator-gates",
+  "private": true,
+  "license": "EUPL-1.2",
+  "type": "module",
+  "packageManager": "bun@1.4.0-canary.1",
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "overrides": {
+    "fast-uri": "4.1.4",
+    "@libre-ai/governance": "file:../project-governance"
+  },
+  "devDependencies": {
+    "@libre-ai/governance": "file:../project-governance",
+    "@libre-ai/contracts-authority": "file:../schemas-and-contracts",
+    "@biomejs/biome": "2.5.3",
+    "@types/bun": "1.3.14",
+    "typescript": "7.0.2"
+  },
+  "scripts": {
+    "check:bun:runtime": "bun node_modules/@libre-ai/governance/tools/quality/check-bun-minimum.ts",
+    "check:bun": "bun run check:bun:runtime && bun node_modules/@libre-ai/governance/tools/quality/check-bun-manifests.ts",
+    "check:toolchain": "bun run check:bun && bun node_modules/@libre-ai/governance/tools/quality/check-toolchain.ts",
+    "check:secret-scan": "bun run check:bun:runtime && bun node_modules/@libre-ai/governance/tools/quality/check-secret-scan.ts",
+    "check:personal-data": "bun run check:bun:runtime && bun node_modules/@libre-ai/governance/tools/quality/check-personal-data-boundary.ts",
+    "lint": "bun run check:bun:runtime && biome ci .",
+    "typecheck": "bun run check:bun:runtime && tsc --noEmit -p tsconfig.json",
+    "test": "cargo test --locked",
+    "check": "bun run check:bun && bun run check:toolchain && bun run check:review-tools && bun run check:capabilities && bun run check:secret-scan && bun run check:personal-data && bun run check:specifications && bun run check:authorized-execution-authority && bun run check:rust-coverage-config && bun run check:memory-draft-sync && bun run check:pattern-catalog && bun run lint && bun run typecheck && bun run check:rust",
+    "pretest": "bun run check:bun",
+    "check:review-tools": "bun run check:bun:runtime && bun install --cwd tools/review --frozen-lockfile && bun test --cwd tools/review",
+    "check:capabilities": "bun run check:bun:runtime && bun test verification/agent-orchestrator/capability-boundary.test.ts",
+    "check:specifications": "bun run check:bun:runtime && bun node_modules/@libre-ai/governance/tools/quality/check-specification-lock.ts --apps orchestrator memory",
+    "check:authorized-execution-authority": "bun run check:bun:runtime && bun test tools/quality/authorized-execution-authority.test.ts",
+    "check:rust-coverage-config": "bun run check:bun:runtime && bun test tools/quality/rust-coverage-gate.test.ts",
+    "check:memory-draft-sync": "bun run check:bun:runtime && bun tools/quality/check-memory-draft-sync.ts",
+    "check:pattern-catalog": "bun run check:bun:runtime && cd tools/quality/pattern-catalog-coverage && bun test --coverage ../orchestration-pattern-catalog.test.ts && cd ../../.. && bun tools/quality/orchestration-pattern-catalog.ts",
+    "check:coverage": "bun run check:bun:runtime && sh tools/quality/rust-coverage.sh",
+    "check:rust": "bun run check:bun:runtime && cargo fmt --all --check && cargo clippy --locked --all-targets --all-features -- -D warnings && cargo test --locked --all-features"
+  }
+}
