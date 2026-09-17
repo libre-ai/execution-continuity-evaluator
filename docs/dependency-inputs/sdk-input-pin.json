@@ -8,7 +8,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "a31420ac008f9a1db9f478351ca3357be8c1cd0942e6cf568f1841f5121cb6c8"
+      "sha256": "7dfedef2ebf9e1330ac070c47bf134acbb7ca941c370c361df9a5c86c5e47724"
     },
     {
       "path": ".github/workflows/context-hygiene.yml",

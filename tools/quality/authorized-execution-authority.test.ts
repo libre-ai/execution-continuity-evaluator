@@ -29,7 +29,7 @@ describe("authorized execution authority", () => {
   test("local SDK bytes match the reviewed current composition", async () => {
     const pinPath = "docs/dependency-inputs/sdk-input-pin.json";
     expect(await sha256(pinPath)).toBe(
-      "a2fc1b2f5fb0bad6414b696e2ee76d8e9203119aa49ca454a8646bc46b566196",
+      "0a5c5a90b879f31b572d91a94202336b960322ef84a26637a96584791def5033",
     );
     const pin: { origin: string; files: Array<{ path: string; sha256: string }> } =
       await Bun.file(pinPath).json();
