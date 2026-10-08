@@ -16,6 +16,18 @@ After an interruption, automated workflows need to distinguish what was attempte
 
 ## Availability
 
+<!-- libre-ai:project-status:begin -->
+<!-- Section générée depuis project.v1.yaml — ne pas éditer à la main. -->
+
+- Situation actuelle : Le noyau natif authorized-execution 0.2.0 de WP-G3-O02 est prouvé sur un commit immuable. Le run boundary, les effets réels et le déploiement restent bloqués et WP-G3-O01 n'est pas revendiqué.
+- Maturité : usable
+- Exposition : spec-published
+- Confiance : medium
+- Preuves vérifiées le : 2026-09-10
+- Avancement : 100 % du périmètre actuellement déclaré
+
+<!-- libre-ai:project-status:end -->
+
 Source code and tests are available in this repository; no package is published to a registry.
 
 Explore the [Libre AI project catalogue](https://github.com/libre-ai/.github/blob/main/profile/README.md).
