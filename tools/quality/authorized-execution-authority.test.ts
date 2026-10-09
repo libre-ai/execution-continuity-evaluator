@@ -17,10 +17,20 @@ async function sha256(path: string): Promise<string> {
 }
 
 describe("authorized execution authority", () => {
-  test("pins the reviewed SDK and Contracts sibling paths", async () => {
+  test("pins the reviewed SDK revision and the Contracts sibling path", async () => {
+    // The SDK is pinned by git at the composed revision so Dependabot can
+    // resolve it; the composition compiles the sibling checkout in its place.
     const cargo = await Bun.file("Cargo.toml").text();
     const packageManifest = await Bun.file("package.json").json();
-    expect(cargo).toContain('path = "../schemas-and-contracts/crates/sdk-rs"');
+    expect(cargo).not.toContain('path = "../');
+    const declared = cargo.match(
+      /git = "https:\/\/github\.com\/libre-ai\/schemas-and-contracts", rev = "([0-9a-f]{40})"/,
+    );
+    expect(declared?.[1]).toBe(
+      Bun.spawnSync(["git", "-C", "../schemas-and-contracts", "rev-parse", "HEAD"])
+        .stdout.toString()
+        .trim(),
+    );
     expect(packageManifest.devDependencies["@libre-ai/contracts-authority"]).toBe(
       "file:../schemas-and-contracts",
     );
