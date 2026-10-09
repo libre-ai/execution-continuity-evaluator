@@ -304,6 +304,8 @@ export function validateVerdict(candidate: unknown, job: ReviewJob): string[] {
     role: string;
     mode: string;
     commitSha: string;
+    findings: { blocking: readonly unknown[] };
+    verdict: "approve" | "approve-with-minor-reservations" | "reject";
   };
   if (verdict.reviewPassId !== job.reviewPassId) {
     errors.push(`reviewPassId mismatch: expected ${job.reviewPassId}, got ${verdict.reviewPassId}`);
@@ -316,6 +318,18 @@ export function validateVerdict(candidate: unknown, job: ReviewJob): string[] {
   }
   if (verdict.commitSha !== job.commit) {
     errors.push(`commitSha mismatch: expected ${job.commit}, got ${verdict.commitSha}`);
+  }
+  // Semantic coherence the schema cannot express: an approval that carries a
+  // blocking finding contradicts itself. Recording it would let a reviewer's
+  // own blocking finding be outvoted by its verdict line, so the envelope is
+  // refused (fanout.ts then emits `verdict_rejected`). Kept producer-side
+  // rather than as a schema if/then: review-verdict.v0.1 records already on
+  // disk stay valid and the $id does not move.
+  const blockingCount = verdict.findings.blocking.length;
+  if (verdict.verdict !== "reject" && blockingCount > 0) {
+    errors.push(
+      `verdict/blocking inconsistency: verdict=${verdict.verdict} with ${blockingCount} blocking finding(s)`,
+    );
   }
   return errors;
 }
