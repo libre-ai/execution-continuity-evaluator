@@ -57,6 +57,7 @@ pub(super) struct RetryPolicy {
 #[derive(Clone, Eq, PartialEq)]
 pub(super) struct DecisionPolicy {
     pub(super) choices: Vec<DecisionChoice>,
+    pub(super) required_role: String,
     pub(super) no_response_outcome_code: String,
     pub(super) request_schema_digest: String,
     pub(super) response_schema_digest: String,
@@ -123,6 +124,7 @@ struct WireRetryPolicy {
 #[serde(rename_all = "camelCase")]
 struct WireDecisionPolicy {
     choices: Vec<WireDecisionChoice>,
+    required_role: String,
     no_response_outcome_code: String,
     request_schema_ref: WireArtifactReference,
     response_schema_ref: WireArtifactReference,
@@ -209,6 +211,7 @@ impl From<WireStep> for AuthorizedStep {
                         outcome_code: choice.outcome_code,
                     })
                     .collect(),
+                required_role: policy.required_role,
                 no_response_outcome_code: policy.no_response_outcome_code,
                 request_schema_digest: policy.request_schema_ref.digest,
                 response_schema_digest: policy.response_schema_ref.digest,
