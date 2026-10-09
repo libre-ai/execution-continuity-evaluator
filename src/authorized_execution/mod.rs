@@ -15,6 +15,7 @@ pub use document::{
     AuthorizedExecutionEvent, AuthorizedGraph, parse_authorized_execution_event,
     parse_authorized_graph,
 };
+pub(crate) use document::{canonical_preimage, sha256_hex};
 pub use effect::{
     EffectApplication, EffectDecision, EffectObservation, EffectRefusal,
     evaluate_effect_attestation,

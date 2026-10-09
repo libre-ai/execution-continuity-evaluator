@@ -135,3 +135,15 @@ predecessor-effects-nonterminal
 effect-valid
 emission-duplicate
 effect-state-unknown
+
+# ToolObservationVerdict (7) — the closed verdict set of ADR-0046 decision 4
+attestation-invalid
+observation-replayed
+observation-chain-broken
+observation-incomplete
+tool-undeclared
+no-progress
+progress
+
+# ToolObservationRefusal (1)
+orchestrator.tool-observation.schema-invalid
