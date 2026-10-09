@@ -1,7 +1,7 @@
 # Fiche d'état du projet — autorité de l'état depuis ADR-0020 (design §6.2).
 # La section statut du README est générée depuis cette fiche (sentinelles).
 schema_version: libre-ai.project.v1
-project: orchestrator
+project: execution-continuity-evaluator
 repository: libre-ai/execution-continuity-evaluator
 kind: satellite
 layer: couche-2
@@ -64,7 +64,7 @@ dependencies:
     # révision qui existe. Aucun manifeste de ce dépôt ne dépendait du retiré :
     # mesuré sur 105 manifestes des 29 dépôts de l'organisation.
     why: "gabarit de gates consommé en workflows réutilisables et git-dep d'outillage — jamais dupliqué"
-    pinned: "github:libre-ai/project-governance#2024a4884b314df99be457618be9c3b48a0287f7"
+    pinned: "github:libre-ai/project-governance#7c2238d6185e59d446586688ca7db32e6a17d3e0"
 maturity: usable
 confidence: medium
 exposure: spec-published
