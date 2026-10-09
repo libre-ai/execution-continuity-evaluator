@@ -67,7 +67,7 @@ dependencies:
     # révision qui existe. Aucun manifeste de ce dépôt ne dépendait du retiré :
     # mesuré sur 105 manifestes des 29 dépôts de l'organisation.
     why: "gabarit de gates consommé en workflows réutilisables et git-dep d'outillage — jamais dupliqué"
-    pinned: "github:libre-ai/project-governance#46061644fb17bc14e67d3501602b7904fce75ae0"
+    pinned: "github:libre-ai/project-governance#1c8b37c80beb41f640982768ec27304a911e0b8e"
 maturity: usable
 confidence: medium
 exposure: spec-published
