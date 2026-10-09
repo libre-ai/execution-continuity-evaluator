@@ -41,23 +41,26 @@ non_goals:
 dependencies:
   - on: libre-ai/schemas-and-contracts
     # 2026-10-07 : `libre-ai/sdk-rs` a été retiré (ADR-0041) et ses projections
-    # SDK vivent dans `schemas-and-contracts`. Aucun Cargo.toml de ce dépôt ne le
-    # déclarait : l'entrée était une intention, pas une dépendance de build.
+    # SDK vivent dans `schemas-and-contracts`. Le Cargo.toml de ce dépôt déclare
+    # `libre-ai-contract-types` par git à cette révision, celle que la composition
+    # de gouvernance extrait ; la CI compile ce checkout frère à la place de la
+    # source git (remplacement de source cargo).
     why: "types Rust des contrats locked, registre embarqué et validation de documents"
-    pinned: "github:libre-ai/schemas-and-contracts#d2767988c7b1a00b304b76c5d5ac92b93898bf30"
+    pinned: "github:libre-ai/schemas-and-contracts#4f3d53c3ecd96e7064057afd1587de41b66f13c1"
   - on: libre-ai/schemas-and-contracts
     # 2026-10-07 : le dépôt nommé ici a été retiré (ADR-0041). Le pin précédent
     # désignait un commit désormais inatteignable ; il nomme son successeur, à une
     # révision qui existe. Aucun manifeste de ce dépôt ne dépendait du retiré :
     # mesuré sur 105 manifestes des 29 dépôts de l'organisation.
     why: "autorité des schémas et des 54 vecteurs sémantiques authorized-execution rejoués directement par les tests"
-    pinned: "github:libre-ai/schemas-and-contracts#d2767988c7b1a00b304b76c5d5ac92b93898bf30"
+    pinned: "github:libre-ai/schemas-and-contracts#4f3d53c3ecd96e7064057afd1587de41b66f13c1"
   - on: libre-ai/schemas-and-contracts
     # 2026-10-07 : `libre-ai/envelope` a été retiré (ADR-0041) et l'enveloppe
-    # d'intégrité vit dans `schemas-and-contracts`. Aucun manifeste de ce dépôt ne
-    # le déclarait : l'entrée était une intention, pas une dépendance de build.
+    # d'intégrité vit dans `schemas-and-contracts`. `tools/review/package.json` la
+    # déclare (`file:../../../schemas-and-contracts/packages/envelope`) : elle est
+    # résolue dans le checkout frère de la composition, à cette révision.
     why: "K3 : enveloppe d'intégrité qui rend une preuve partagée gardée avant lecture par un modèle de revue"
-    pinned: "github:libre-ai/schemas-and-contracts#d2767988c7b1a00b304b76c5d5ac92b93898bf30"
+    pinned: "github:libre-ai/schemas-and-contracts#4f3d53c3ecd96e7064057afd1587de41b66f13c1"
   - on: libre-ai/project-governance
     # 2026-10-07 : le dépôt nommé ici a été retiré (ADR-0041). Le pin précédent
     # désignait un commit désormais inatteignable ; il nomme son successeur, à une

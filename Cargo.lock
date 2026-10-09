@@ -335,6 +335,7 @@ dependencies = [
 [[package]]
 name = "libre-ai-contract-types"
 version = "0.1.0"
+source = "git+https://github.com/libre-ai/schemas-and-contracts?rev=4f3d53c3ecd96e7064057afd1587de41b66f13c1#4f3d53c3ecd96e7064057afd1587de41b66f13c1"
 dependencies = [
  "chrono",
  "jsonschema",
