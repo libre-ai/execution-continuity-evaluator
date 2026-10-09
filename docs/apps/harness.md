@@ -1,1 +1,1 @@
-Migrated to [`libre-ai/harness`](https://github.com/libre-ai/harness/blob/main/docs/apps/harness.md) (ADR-0018 D3, domain F chantier A, 2026-08-18) — this repository no longer owns the harness specification.
+Migrated to [`libre-ai/execution-sandbox`](https://github.com/libre-ai/execution-sandbox/blob/HEAD/docs/apps/harness.md) — this repository no longer owns the harness specification. It first moved to the former `libre-ai/harness` repository (ADR-0018 D3, domain F chantier A, 2026-08-18), retired on 2026-10-07.

@@ -217,7 +217,7 @@ export function dedupeJobs(
   return { run, skipped };
 }
 
-// The protocol document lives in libre-ai/governance, not in this repo: a
+// The protocol document lives in libre-ai/project-governance, not in this repo: a
 // local copy would drift from the one the git-dep pins. Resolve it from the
 // installed dependency instead of assuming a repo-relative path that this
 // repo never carries (2026-08-18 fix — the check used to look for
