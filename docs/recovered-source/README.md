@@ -57,7 +57,7 @@ state.
 
 ## Tool-observation evaluator
 
-The `0.3.0` API adds `evaluate_tool_observations`, the pure evaluator of
+The `0.4.0` API adds `evaluate_tool_observations`, the pure evaluator of
 [ADR-0046](https://github.com/libre-ai/project-governance/blob/HEAD/docs/adr/0046-tool-invocation-observation.md).
 It replays the harness-signed `tool-invocation-observation.v1` windows of one
 worker invocation and renders one closed verdict, the first that applies in

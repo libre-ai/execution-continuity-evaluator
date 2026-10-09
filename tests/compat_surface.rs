@@ -69,8 +69,8 @@ fn snapshot_lines(text: &str) -> Vec<String> {
 }
 
 #[test]
-fn tool_observation_surface_is_versioned_as_0_3_0() {
-    assert_eq!(env!("CARGO_PKG_VERSION"), "0.3.0");
+fn tool_observation_surface_is_versioned_as_0_4_0() {
+    assert_eq!(env!("CARGO_PKG_VERSION"), "0.4.0");
 }
 
 #[test]
@@ -254,7 +254,10 @@ fn decision_refusal_variants_are_covered(value: DecisionRefusal) {
         | DecisionRefusal::RequestConsumed
         | DecisionRefusal::ChoiceUnknown
         | DecisionRefusal::ActorUnauthorized
-        | DecisionRefusal::RevisionStale => {}
+        | DecisionRefusal::RevisionStale
+        | DecisionRefusal::GraphBindingMismatch
+        | DecisionRefusal::StepNotDecision
+        | DecisionRefusal::DecisionPolicyMismatch => {}
     }
 }
 
@@ -580,6 +583,9 @@ fn stable_codes_match_the_committed_snapshot() {
             DecisionRefusal::ChoiceUnknown,
             DecisionRefusal::ActorUnauthorized,
             DecisionRefusal::RevisionStale,
+            DecisionRefusal::GraphBindingMismatch,
+            DecisionRefusal::StepNotDecision,
+            DecisionRefusal::DecisionPolicyMismatch,
         ]
         .iter()
         .map(|refusal| refusal.code().to_owned()),

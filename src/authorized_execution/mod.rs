@@ -9,7 +9,7 @@ mod transfer;
 
 pub use decision::{
     DecisionApplication, DecisionDecision, DecisionObservation, DecisionRefusal,
-    evaluate_human_decision,
+    evaluate_bound_human_decision, evaluate_human_decision,
 };
 pub use document::{
     AuthorizedExecutionEvent, AuthorizedGraph, parse_authorized_execution_event,

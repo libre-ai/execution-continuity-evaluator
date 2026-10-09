@@ -47,6 +47,7 @@ TransferDecision
 TransferObservation
 TransferRefusal
 command_fingerprint
+evaluate_bound_human_decision
 evaluate_budget_event
 evaluate_causal_transition
 evaluate_control
@@ -62,7 +63,7 @@ parse_control_document
 replay_authorized_execution
 select_graph_transition
 
-# Tool-observation evaluator (0.3.0, ADR-0046)
+# Tool-observation evaluator (0.4.0, ADR-0046)
 HarnessSignatureVerifier
 ToolObservationCounters
 ToolObservationDecision

@@ -108,10 +108,18 @@ The orchestrator turns an authorized execution plan into a bounded, observable r
 - `parse_authorized_graph`, `evaluate_graph`, `select_graph_transition` and `evaluate_graph_authority` validate and evaluate the locked graph and authority semantics.
 - `parse_authorized_execution_event`, `evaluate_causal_transition` and `replay_authorized_execution` validate event digests and replay accepted state deterministically.
 - `evaluate_human_decision` and `evaluate_execution_transfer` decide exact request/response and generation-transfer observations without consuming or persisting them.
+- `evaluate_bound_human_decision` (0.3.0) first binds the request to its step's policy in the authorized graph, then evaluates the decision:
+  - the request must name the graph by digest and organization;
+  - it must name a `human-decision` step of that graph;
+  - it must restate that step's choice-to-outcome map, no-response outcome and required role exactly.
+
+  Otherwise it refuses with `graph-binding-mismatch`, `step-not-decision` or `decision-policy-mismatch`. A step identifier carried by two steps, or a repeated choice identifier, is a boundary refusal.
+
+  Callers holding a graph use this function. `evaluate_human_decision` alone accepts a request that inverts its outcomes or lowers the approver role, because it never sees the policy. Contract: candidate `decision-binding-vectors.v1` (`libre-ai/schemas-and-contracts` `599cd8e`), pending lock. The choice `label` stays unbound: issuers must never take labels from the requester.
 - `evaluate_effect_attestation` applies the continuity barrier across invocation, fencing, attestation and terminal observations without calling an executor.
 
 All associated decision, refusal, state, transition, observation and
-application types are re-exported by `src/lib.rs` and pinned by the `0.2.0`
+application types are re-exported by `src/lib.rs` and pinned by the `0.3.0`
 compatibility snapshots.
 
 Every document these functions read carries its own seal — `graphDigest`,
