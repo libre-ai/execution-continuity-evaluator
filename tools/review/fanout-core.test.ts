@@ -232,6 +232,70 @@ describe("validateVerdict", () => {
       expect.stringContaining("commitSha mismatch"),
     );
   });
+
+  // The schema cannot relate `verdict` to `findings.blocking`; an approval that
+  // carries a blocking finding contradicts itself and must not be recorded.
+  const blockingFinding = { title: "Unsigned release", detail: "artifact has no signature" };
+  const majorFinding = { title: "Missing test", detail: "error path not exercised" };
+  function findings(overrides: Record<string, unknown[]> = {}): Record<string, unknown[]> {
+    return { blocking: [], major: [], minor: [], nonBlocking: [], ...overrides };
+  }
+
+  test("rejects approve with a non-empty blocking list", () => {
+    expect(
+      validateVerdict(
+        verdict({ verdict: "approve", findings: findings({ blocking: [blockingFinding] }) }),
+        job(),
+      ),
+    ).toEqual(["verdict/blocking inconsistency: verdict=approve with 1 blocking finding(s)"]);
+  });
+
+  test("rejects approve-with-minor-reservations with a non-empty blocking list", () => {
+    expect(
+      validateVerdict(
+        verdict({
+          verdict: "approve-with-minor-reservations",
+          findings: findings({ blocking: [blockingFinding, blockingFinding] }),
+        }),
+        job(),
+      ),
+    ).toEqual([
+      "verdict/blocking inconsistency: verdict=approve-with-minor-reservations with 2 blocking finding(s)",
+    ]);
+  });
+
+  test("accepts reject with blocking findings", () => {
+    expect(
+      validateVerdict(
+        verdict({ verdict: "reject", findings: findings({ blocking: [blockingFinding] }) }),
+        job(),
+      ),
+    ).toEqual([]);
+  });
+
+  test("accepts approve with majors and no blocking finding (unchanged behaviour)", () => {
+    expect(
+      validateVerdict(
+        verdict({ verdict: "approve", findings: findings({ major: [majorFinding] }) }),
+        job(),
+      ),
+    ).toEqual([]);
+  });
+
+  test("reports the inconsistency alongside identity mismatches", () => {
+    const errors = validateVerdict(
+      verdict({
+        reviewPassId: "rp-9",
+        verdict: "approve",
+        findings: findings({ blocking: [blockingFinding] }),
+      }),
+      job(),
+    );
+    expect(errors).toContain("reviewPassId mismatch: expected rp-1, got rp-9");
+    expect(errors).toContain(
+      "verdict/blocking inconsistency: verdict=approve with 1 blocking finding(s)",
+    );
+  });
 });
 
 describe("runBatched", () => {
