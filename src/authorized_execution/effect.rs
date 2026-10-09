@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::AuthorizedExecutionRefusal;
-use super::document::require_valid;
+use super::document::{require_seal, require_valid};
 
 const EFFECT_ATTESTATION_SCHEMA: &str = "effect-attestation.v1.schema.json";
 
@@ -195,7 +195,14 @@ pub fn evaluate_effect_attestation(
     attestation_document: &Value,
     observation: EffectObservation<'_>,
 ) -> EffectDecision {
-    if require_valid(registry, EFFECT_ATTESTATION_SCHEMA, attestation_document).is_err() {
+    if require_valid(registry, EFFECT_ATTESTATION_SCHEMA, attestation_document).is_err()
+        || require_seal(
+            attestation_document,
+            "preimageDigest",
+            &["preimageDigest", "signature"],
+        )
+        .is_err()
+    {
         return boundary(AuthorizedExecutionRefusal::SchemaInvalid);
     }
     let attestation: WireEffectAttestation =

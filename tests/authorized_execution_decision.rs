@@ -3,7 +3,9 @@ mod support;
 use libre_ai_agent_orchestrator::{DecisionDecision, DecisionObservation, evaluate_human_decision};
 use libre_ai_contract_types::ContractRegistry;
 use serde_json::Value;
-use support::authorized_execution::{valid_decision_request, valid_decision_response};
+use support::authorized_execution::{
+    reseal_decision_response, valid_decision_request, valid_decision_response,
+};
 
 const NOW: &str = "2026-09-10T11:00:00Z";
 const APPROVER: &[&str] = &["mission-approver"];
@@ -44,6 +46,7 @@ fn decision_precedence_covers_every_locked_outcome() {
 
     let mut organization = response.clone();
     organization["organizationId"] = Value::String("ten_abcdef1234567890".to_owned());
+    reseal_decision_response(&mut organization);
     assert_eq!(
         evaluate(
             &request,
@@ -57,6 +60,7 @@ fn decision_precedence_covers_every_locked_outcome() {
 
     let mut attempt = response.clone();
     attempt["attemptId"] = Value::String("urn:libre-ai:attempt:other".to_owned());
+    reseal_decision_response(&mut attempt);
     assert_eq!(
         evaluate(
             &request,
@@ -136,6 +140,7 @@ fn decision_precedence_covers_every_locked_outcome() {
 
     let mut unknown_choice = response.clone();
     unknown_choice["choiceId"] = Value::String("unknown".to_owned());
+    reseal_decision_response(&mut unknown_choice);
     assert_eq!(
         evaluate(
             &request,
@@ -159,6 +164,7 @@ fn decision_precedence_covers_every_locked_outcome() {
 
     let mut stale = response.clone();
     stale["expectedRevision"] = Value::from(3);
+    reseal_decision_response(&mut stale);
     assert_eq!(
         evaluate(
             &request,
@@ -180,7 +186,9 @@ fn decision_precedence_covers_every_locked_outcome() {
     let application = decision.application().expect("valid application");
     assert_eq!(
         application.request_digest(),
-        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        request["requestDigest"]
+            .as_str()
+            .expect("sealed request digest")
     );
     assert_eq!(application.outcome_code(), "approved");
     assert_eq!(application.expected_revision(), 4);

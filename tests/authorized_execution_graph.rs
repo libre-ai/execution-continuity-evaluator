@@ -5,11 +5,12 @@ use libre_ai_agent_orchestrator::{
 };
 use libre_ai_contract_types::ContractRegistry;
 use serde_json::{Value, json};
-use support::authorized_execution::{valid_graph_document, valid_plan_document};
+use support::authorized_execution::{
+    reseal_graph, reseal_plan, valid_graph_document, valid_plan_document,
+};
 
 const ORGANIZATION_ID: &str = "ten_1234567890abcdef";
 const GRAPH_ID: &str = "urn:libre-ai:graph:synthetic-graph";
-const GRAPH_DIGEST: &str = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
 
 fn step_id(label: &str) -> String {
     format!("urn:libre-ai:step:{label}")
@@ -45,7 +46,7 @@ fn edge(label: &str, from: &str, outcome: &str, to: &str) -> Value {
 }
 
 fn graph_document(entry: &str, steps: Vec<Value>, edges: Vec<Value>) -> Value {
-    json!({
+    let mut document = json!({
         "schemaVersion": "libre-ai.execution-graph.v1",
         "id": GRAPH_ID,
         "organizationId": ORGANIZATION_ID,
@@ -53,8 +54,10 @@ fn graph_document(entry: &str, steps: Vec<Value>, edges: Vec<Value>) -> Value {
         "steps": steps,
         "edges": edges,
         "createdAt": "2030-01-01T00:00:00Z",
-        "graphDigest": GRAPH_DIGEST
-    })
+        "graphDigest": ""
+    });
+    reseal_graph(&mut document);
+    document
 }
 
 fn decision_code(registry: &ContractRegistry, document: &Value) -> &'static str {
@@ -227,6 +230,8 @@ fn route_selection_is_closed_and_order_independent() {
         .as_array_mut()
         .expect("edges")
         .reverse();
+    // Another serialization of the same graph is another sealed document.
+    reseal_graph(&mut reversed_document);
     let first = parse_authorized_graph(&registry, &first_document).expect("first graph");
     let reversed = parse_authorized_graph(&registry, &reversed_document).expect("reversed graph");
 
@@ -257,6 +262,7 @@ fn graph_authority_covers_every_locked_case() {
 
     let mut invalid_retry = graph_document.clone();
     invalid_retry["steps"][0]["retryPolicy"]["retryableOutcomeCodes"] = json!(["unknown"]);
+    reseal_graph(&mut invalid_retry);
     let invalid_retry =
         parse_authorized_graph(&registry, &invalid_retry).expect("schema-valid retry mismatch");
     assert_eq!(
@@ -266,6 +272,7 @@ fn graph_authority_covers_every_locked_case() {
 
     let mut duplicate_choice = graph_document.clone();
     duplicate_choice["steps"][1]["decisionPolicy"]["choices"][1]["choiceId"] = json!("approve");
+    reseal_graph(&mut duplicate_choice);
     let duplicate_choice = parse_authorized_graph(&registry, &duplicate_choice)
         .expect("schema-valid duplicate choice");
     assert_eq!(
@@ -276,6 +283,7 @@ fn graph_authority_covers_every_locked_case() {
     let mut substituted_plan = plan;
     substituted_plan["executionGraph"]["digest"] =
         json!("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+    reseal_plan(&mut substituted_plan);
     assert_eq!(
         evaluate_graph_authority(&graph, &substituted_plan, &registry).code(),
         "authority-binding-mismatch"
@@ -344,6 +352,7 @@ fn deterministic_graphs_up_to_four_nodes_are_order_independent() {
                 .as_array_mut()
                 .expect("edges")
                 .reverse();
+            reseal_graph(&mut reversed_document);
             let reversed =
                 parse_authorized_graph(&registry, &reversed_document).expect("reversed graph");
             assert_eq!(evaluate_graph(&reversed).code(), "graph-valid");

@@ -43,7 +43,9 @@ let document = json!({
         "toStepId": "urn:libre-ai:step:terminal"
     }],
     "createdAt": "2026-09-10T10:00:00Z",
-    "graphDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    // Seal: SHA-256 of the JCS form of this document without `graphDigest`.
+    // A document whose seal is not the digest of its content is refused.
+    "graphDigest": "4dee06c8098e4bb29175d14dd19afab992b37a68db811436b83e237a1e622b39"
 });
 let graph = parse_authorized_graph(&registry, &document).expect("valid synthetic graph");
 assert_eq!(evaluate_graph(&graph).code(), "graph-valid");

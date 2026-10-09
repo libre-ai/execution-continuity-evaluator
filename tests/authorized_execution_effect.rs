@@ -6,13 +6,12 @@ use libre_ai_agent_orchestrator::{
 };
 use libre_ai_contract_types::ContractRegistry;
 use serde_json::Value;
-use support::authorized_execution::valid_effect_attestation;
+use support::authorized_execution::{reseal_effect_attestation, valid_effect_attestation};
 
 const ORGANIZATION: &str = "ten_1234567890abcdef";
 const RUN: &str = "urn:libre-ai:run:synthetic-run-1";
 const ATTEMPT: &str = "urn:libre-ai:attempt:synthetic-attempt-1";
 const EMISSION: &str = "urn:libre-ai:emission:synthetic-emission-1";
-const EMISSION_DIGEST: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const EXECUTOR_PROFILE: &str = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
 fn registry() -> ContractRegistry {
@@ -72,6 +71,9 @@ fn evaluate(attestation: &Value, observation: EffectObservation<'_>) -> EffectDe
 #[test]
 fn effect_precedence_covers_every_locked_and_internal_outcome() {
     let attestation = valid_effect_attestation("committed");
+    let emission_digest = attestation["preimageDigest"]
+        .as_str()
+        .expect("sealed preimage digest");
 
     assert_eq!(
         evaluate(
@@ -209,7 +211,7 @@ fn effect_precedence_covers_every_locked_and_internal_outcome() {
                 false,
                 false,
                 false,
-                Some((EMISSION, EMISSION_DIGEST)),
+                Some((EMISSION, emission_digest)),
                 None,
             ),
         )
@@ -303,6 +305,7 @@ fn effect_precedence_covers_every_locked_and_internal_outcome() {
     wrong_profile["executorProfileRef"]["digest"] = Value::String(
         "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".to_owned(),
     );
+    reseal_effect_attestation(&mut wrong_profile);
     assert_eq!(
         evaluate(&wrong_profile, valid_observation()).code(),
         "executor-unqualified"
@@ -377,9 +380,13 @@ fn nonterminal_attestation_cannot_be_applied() {
 
 #[test]
 fn every_effect_decision_has_minimized_diagnostics() {
-    let valid = evaluate(&valid_effect_attestation("committed"), valid_observation());
+    let committed = valid_effect_attestation("committed");
+    let emission_digest = committed["preimageDigest"]
+        .as_str()
+        .expect("sealed preimage digest");
+    let valid = evaluate(&committed, valid_observation());
     let duplicate = evaluate(
-        &valid_effect_attestation("committed"),
+        &committed,
         observation(
             ORGANIZATION,
             RUN,
@@ -390,7 +397,7 @@ fn every_effect_decision_has_minimized_diagnostics() {
             false,
             true,
             true,
-            Some((EMISSION, EMISSION_DIGEST)),
+            Some((EMISSION, emission_digest)),
             None,
         ),
     );
@@ -416,7 +423,7 @@ fn every_effect_decision_has_minimized_diagnostics() {
         RUN,
         ATTEMPT,
         EMISSION,
-        EMISSION_DIGEST,
+        emission_digest,
         EXECUTOR_PROFILE,
         "executor_key_1",
         "synthetic-effect-1",

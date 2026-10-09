@@ -13,7 +13,10 @@ use libre_ai_agent_orchestrator::{
 use libre_ai_contract_types::ContractRegistry;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use support::authorized_execution::{EventFixture, event_document, reseal_event_document};
+use support::authorized_execution::{
+    EventFixture, event_document, reseal_decision_request, reseal_decision_response,
+    reseal_effect_attestation, reseal_event_document, reseal_graph, reseal_plan, reseal_transfer,
+};
 
 const AUTHORITY_ROOT: &str = "node_modules/@libre-ai/contracts-authority";
 const SEMANTIC_VECTORS: &str =
@@ -169,6 +172,9 @@ fn adapt_graph(
     document["entryStepId"] = Value::String(step_urn(text(reduced, "entryStepId")?));
     document["steps"] = Value::Array(steps);
     document["edges"] = Value::Array(edges);
+    // Vectors reduce digests to symbols; every document built from them is
+    // sealed so that the rule under test is reached, not the seal check.
+    reseal_graph(&mut document);
     let graph = parse_authorized_graph(registry, &document).map_err(|_| "graph-boundary")?;
     Ok(evaluate_graph(&graph).code())
 }
@@ -309,6 +315,7 @@ fn adapt_decision(
             })
             .collect::<Result<Vec<_>, &'static str>>()?,
     );
+    reseal_decision_request(&mut request);
     response["choiceId"] = Value::String(string(response_facts, "choiceId")?);
     response["expectedRevision"] = Value::from(number(response_facts, "expectedRevision")?);
     response["actorAuthorization"]["role"] = request["requiredRole"].clone();
@@ -320,6 +327,7 @@ fn adapt_decision(
     if request_facts["attemptId"] != response_facts["attemptId"] {
         response["attemptId"] = Value::String("urn:libre-ai:attempt:other".to_owned());
     }
+    reseal_decision_response(&mut response);
 
     let role_storage = response_facts["actorRoles"]
         .as_array()
@@ -416,6 +424,7 @@ fn adapt_transfer(
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
     )?;
+    reseal_transfer(&mut transfer);
 
     let prior_transfer = match facts.get("collision") {
         None | Some(Value::Null) => None,
@@ -492,6 +501,7 @@ fn adapt_effect(
     attestation["generation"] = Value::from(number(attestation_facts, "generation")?);
     attestation["fencingValue"] = attestation_facts["fencing"].clone();
     attestation["status"] = Value::String(string(attestation_facts, "status")?);
+    reseal_effect_attestation(&mut attestation);
 
     let current_emission_id = attestation["effectEmissionId"]
         .as_str()
@@ -577,11 +587,15 @@ fn adapt_authority(
         graph_document["steps"][1]["decisionPolicy"]["choices"][1]["choiceId"] =
             Value::String("approve".to_owned());
     }
-    if graph_facts["graphDigest"] != plan_facts["executionGraph"]["digest"] {
-        plan_document["executionGraph"]["digest"] = Value::String(
-            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".to_owned(),
-        );
-    }
+    reseal_graph(&mut graph_document);
+    plan_document["executionGraph"]["digest"] = if graph_facts["graphDigest"]
+        == plan_facts["executionGraph"]["digest"]
+    {
+        graph_document["graphDigest"].clone()
+    } else {
+        Value::String("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".to_owned())
+    };
+    reseal_plan(&mut plan_document);
     let graph = parse_authorized_graph(registry, &graph_document)
         .map_err(|_| "authority-graph-boundary")?;
     Ok(evaluate_graph_authority(&graph, &plan_document, registry).code())

@@ -7,7 +7,7 @@ use libre_ai_agent_orchestrator::{
 use libre_ai_contract_types::ContractRegistry;
 use serde_json::Value;
 use support::authorized_execution::{
-    EventFixture, encode_state_for_test, event_document, reseal_event_document,
+    EventFixture, encode_state_for_test, event_document, reseal_event_document, valid_graph_digest,
     valid_graph_document,
 };
 
@@ -246,11 +246,12 @@ fn push_event(
 ) {
     let sequence = events.len() as u64 + 1;
     let previous_event_digest = events.last().map(AuthorizedExecutionEvent::digest);
+    let graph_digest = valid_graph_digest();
     let document = event_document(&EventFixture {
         event_type,
         sequence,
         previous_event_digest,
-        graph_digest: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        graph_digest: &graph_digest,
         step_id,
         attempt_id: matches!(
             event_type,
@@ -448,11 +449,12 @@ fn divergent_duplicate_and_second_ready_step_quarantine() {
         parse_authorized_graph(&registry, &valid_graph_document()).expect("valid graph fixture");
     let canonical = complete_chain(&registry);
 
+    let graph_digest = valid_graph_digest();
     let mut divergent_document = event_document(&EventFixture {
         event_type: "graph-activated",
         sequence: 1,
         previous_event_digest: None,
-        graph_digest: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        graph_digest: &graph_digest,
         step_id: None,
         attempt_id: None,
         worker_invocation_id: None,

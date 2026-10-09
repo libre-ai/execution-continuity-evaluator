@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::AuthorizedExecutionRefusal;
-use super::document::require_valid;
+use super::document::{require_seal, require_valid};
 
 const DECISION_REQUEST_SCHEMA: &str = "human-decision-request.v1.schema.json";
 const DECISION_RESPONSE_SCHEMA: &str = "human-decision-response.v1.schema.json";
@@ -205,6 +205,8 @@ pub fn evaluate_human_decision(
 ) -> DecisionDecision {
     if require_valid(registry, DECISION_REQUEST_SCHEMA, request_document).is_err()
         || require_valid(registry, DECISION_RESPONSE_SCHEMA, response_document).is_err()
+        || require_seal(request_document, "requestDigest", &["requestDigest"]).is_err()
+        || require_seal(response_document, "responseDigest", &["responseDigest"]).is_err()
     {
         return boundary(AuthorizedExecutionRefusal::SchemaInvalid);
     }

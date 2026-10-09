@@ -114,6 +114,15 @@ All associated decision, refusal, state, transition, observation and
 application types are re-exported by `src/lib.rs` and pinned by the `0.2.0`
 compatibility snapshots.
 
+Every document these functions read carries its own seal — `graphDigest`,
+`bodyDigest`, `eventDigest`, `requestDigest`, `responseDigest`,
+`transferDigest`, `preimageDigest` — and each is recomputed (SHA-256 of the
+JCS form without the seal, and without `signature` for an attestation) before
+the content is read. A document whose seal is not the digest of its content
+is refused at the boundary (`orchestrator.authorized-execution.schema-invalid`):
+a seal compared only with another claimed seal would let a decision request be
+changed after it was approved and still be applied.
+
 **Target — closed by ADR-0018 D2 until a WP opens it:**
 
 **Commands:** `OpenRun`, `ApplyControlDocument`, `RequestStep`, `RecordStepResult`, `RecordRefusal`, `HaltRun`.
@@ -218,6 +227,7 @@ Degraded modes are explicit and fail closed. Revocation store unavailable: deny 
 - `contracts/schemas/execution-transfer.v1.schema.json` — generation-transfer evaluation.
 - `contracts/schemas/effect-attestation.v1.schema.json` — effect continuity and fencing evaluation.
 - `contracts/fixtures/authorized-execution-v1/semantic-vectors.v1.json` — all 54 locked cases replayed directly by `tests/authorized_execution_vectors.rs`.
+- `contracts/fixtures/authorized-execution-v1/digest-vectors.v1.json` — the seal rule, checked case by case by `tests/authorized_execution_seal.rs`, which also refuses a wrong seal on each sealed document kind.
 
 **Target — closed by ADR-0018 D2 until a WP opens it:**
 

@@ -17,7 +17,6 @@ use support::crash::{
 const ORGANIZATION: &str = "ten_1234567890abcdef";
 const RUN: &str = "urn:libre-ai:run:synthetic-run-1";
 const EMISSION: &str = "urn:libre-ai:emission:synthetic-emission-1";
-const EMISSION_DIGEST: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const EXECUTOR_PROFILE: &str = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
 struct RecoveryReport {
@@ -173,10 +172,15 @@ fn run_crash_scenario(
             )
             .code(),
             Some(observation) => {
+                let attestation = valid_effect_attestation(observation.status);
+                // The journal recorded this emission under the attestation's seal.
+                let recorded_digest = attestation["preimageDigest"]
+                    .as_str()
+                    .ok_or("terminal-attestation-seal")?;
                 let decision = evaluate_effect_attestation(
                     &registry,
-                    &valid_effect_attestation(observation.status),
-                    effect_observation(Some((EMISSION, EMISSION_DIGEST))),
+                    &attestation,
+                    effect_observation(Some((EMISSION, recorded_digest))),
                 );
                 let code = decision.code();
                 if code != "emission-duplicate" {
@@ -366,11 +370,12 @@ fn invalid_invocation_and_identity_substitutions_never_commit() {
 #[test]
 fn unavailable_collision_lineage_and_executor_status_fail_closed() {
     let registry = ContractRegistry::embedded().expect("embedded registry");
+    let graph_digest = support::crash::effect_graph_digest();
     let event_document = event_document(&EventFixture {
         event_type: "graph-activated",
         sequence: 1,
         previous_event_digest: None,
-        graph_digest: support::crash::GRAPH_DIGEST,
+        graph_digest: &graph_digest,
         step_id: None,
         attempt_id: None,
         worker_invocation_id: None,
