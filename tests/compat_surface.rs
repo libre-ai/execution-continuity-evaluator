@@ -18,13 +18,16 @@ use libre_ai_agent_orchestrator::{
 };
 use libre_ai_contract_types::ContractRegistry;
 use serde_json::json;
+use support::authorized_execution::{
+    reseal_effect_attestation, schema_fixture, valid_decision_request, valid_decision_response,
+    valid_execution_transfer,
+};
+
+mod support;
 
 const LIB_RS_SOURCE: &str = include_str!("../src/lib.rs");
 const PUBLIC_SURFACE_SNAPSHOT: &str = include_str!("compat/public_surface.snapshot");
 const STABLE_CODES_SNAPSHOT: &str = include_str!("compat/stable_codes.snapshot");
-const SCHEMA_FIXTURES: &str = include_str!(
-    "../node_modules/@libre-ai/contracts-authority/contracts/fixtures/schema-fixtures.v1.json"
-);
 
 /// Every symbol named inside the crate's `pub use module::{...};` blocks —
 /// the only place `src/lib.rs` exposes anything, since `budget` and
@@ -355,30 +358,17 @@ fn selected_route_code() -> &'static str {
             "toStepId": "urn:libre-ai:step:terminal"
         }],
         "createdAt": "2030-01-01T00:00:00Z",
-        "graphDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        // Seal of this document (JCS without `graphDigest`, SHA-256).
+        "graphDigest": "ddbd1e941d927fb66c7e5405c5684a368b763c5138f041bbab69b2b4d26646af"
     });
     let graph = parse_authorized_graph(&registry, &document).expect("valid compat graph");
     select_graph_transition(&graph, "urn:libre-ai:step:source", "ready").code()
 }
 
-fn schema_fixture(schema_name: &str) -> serde_json::Value {
-    let document: serde_json::Value =
-        serde_json::from_str(SCHEMA_FIXTURES).expect("locked schema fixtures");
-    document["cases"]
-        .as_array()
-        .expect("fixture cases")
-        .iter()
-        .find(|case| case["schema"].as_str() == Some(schema_name))
-        .and_then(|case| case.get("valid"))
-        .cloned()
-        .expect("named fixture")
-}
-
 fn valid_decision_code() -> &'static str {
     let registry = ContractRegistry::embedded().expect("embedded registry");
-    let request = schema_fixture("human-decision-request.v1.schema.json");
-    let mut response = schema_fixture("human-decision-response.v1.schema.json");
-    response["requestDigest"] = request["requestDigest"].clone();
+    let request = valid_decision_request();
+    let response = valid_decision_response();
     evaluate_human_decision(
         &registry,
         &request,
@@ -391,7 +381,7 @@ fn valid_decision_code() -> &'static str {
 
 fn valid_transfer_code() -> &'static str {
     let registry = ContractRegistry::embedded().expect("embedded registry");
-    let transfer = schema_fixture("execution-transfer.v1.schema.json");
+    let transfer = valid_execution_transfer();
     evaluate_execution_transfer(
         &registry,
         &transfer,
@@ -415,7 +405,8 @@ fn valid_transfer_code() -> &'static str {
 
 fn valid_effect_code() -> &'static str {
     let registry = ContractRegistry::embedded().expect("embedded registry");
-    let attestation = schema_fixture("effect-attestation.v1.schema.json");
+    let mut attestation = schema_fixture("effect-attestation.v1.schema.json");
+    reseal_effect_attestation(&mut attestation);
     evaluate_effect_attestation(
         &registry,
         &attestation,

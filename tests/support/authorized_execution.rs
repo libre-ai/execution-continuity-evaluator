@@ -28,28 +28,50 @@ pub fn schema_fixture(schema_name: &str) -> Value {
         .expect("requested locked schema fixture must exist")
 }
 
+// The locked schema fixtures carry placeholder digests (schema-valid, not
+// sealed); every builder below seals what it returns.
 pub fn valid_graph_document() -> Value {
-    schema_fixture("execution-graph.v1.schema.json")
+    let mut graph = schema_fixture("execution-graph.v1.schema.json");
+    reseal_graph(&mut graph);
+    graph
 }
 
+/// Seal of `valid_graph_document()`: the digest events bind to.
+pub fn valid_graph_digest() -> String {
+    valid_graph_document()["graphDigest"]
+        .as_str()
+        .expect("sealed graph")
+        .to_owned()
+}
+
+/// A plan bound to `valid_graph_document()`, sealed.
 #[allow(dead_code)]
 pub fn valid_plan_document() -> Value {
-    schema_fixture("execution-plan-body.v2.schema.json")
+    let mut plan = schema_fixture("execution-plan-body.v2.schema.json");
+    plan["executionGraph"]["digest"] = valid_graph_document()["graphDigest"].clone();
+    reseal_plan(&mut plan);
+    plan
 }
 
 pub fn valid_decision_request() -> Value {
-    schema_fixture("human-decision-request.v1.schema.json")
+    let mut request = schema_fixture("human-decision-request.v1.schema.json");
+    reseal_decision_request(&mut request);
+    request
 }
 
+/// A response bound to `valid_decision_request()`, sealed.
 pub fn valid_decision_response() -> Value {
     let request = valid_decision_request();
     let mut response = schema_fixture("human-decision-response.v1.schema.json");
     response["requestDigest"] = request["requestDigest"].clone();
+    reseal_decision_response(&mut response);
     response
 }
 
 pub fn valid_execution_transfer() -> Value {
-    schema_fixture("execution-transfer.v1.schema.json")
+    let mut transfer = schema_fixture("execution-transfer.v1.schema.json");
+    reseal_transfer(&mut transfer);
+    transfer
 }
 
 pub fn valid_effect_attestation(status: &str) -> Value {
@@ -59,6 +81,7 @@ pub fn valid_effect_attestation(status: &str) -> Value {
         attestation["observationRef"] = Value::Null;
         attestation["observedAt"] = Value::Null;
     }
+    reseal_effect_attestation(&mut attestation);
     attestation
 }
 
@@ -103,16 +126,57 @@ pub fn event_document(fixture: &EventFixture<'_>) -> Value {
 }
 
 pub fn reseal_event_document(document: &mut Value) {
-    let object = document
+    reseal(document, "eventDigest", &["eventDigest"]);
+}
+
+/// Canonical self-digest of a contract document: SHA-256 of the JCS form of
+/// the document without its excluded fields, the rule the contract authority
+/// publishes in `authorized-execution-v1/digest-vectors.v1.json`.
+pub fn canonical_digest(document: &Value, excluded: &[&str]) -> String {
+    let mut unsigned = document.clone();
+    let object = unsigned
         .as_object_mut()
-        .expect("event document must be an object");
-    object.remove("eventDigest");
-    let canonical = serde_jcs::to_vec(document).expect("synthetic event must canonicalize");
+        .expect("sealed document must be an object");
+    for field in excluded {
+        object.remove(*field);
+    }
+    let canonical = serde_jcs::to_vec(&unsigned).expect("synthetic document must canonicalize");
     let mut digest = String::with_capacity(64);
     for byte in Sha256::digest(canonical) {
         write!(&mut digest, "{byte:02x}").expect("writing to a String cannot fail");
     }
-    document["eventDigest"] = Value::String(digest);
+    digest
+}
+
+/// Recomputes the self-digest after a test changed the document, so that a
+/// test reaches the rule it targets instead of the seal check.
+pub fn reseal(document: &mut Value, field: &str, excluded: &[&str]) {
+    let digest = canonical_digest(document, excluded);
+    document[field] = Value::String(digest);
+}
+
+pub fn reseal_graph(document: &mut Value) {
+    reseal(document, "graphDigest", &["graphDigest"]);
+}
+
+pub fn reseal_plan(document: &mut Value) {
+    reseal(document, "bodyDigest", &["bodyDigest"]);
+}
+
+pub fn reseal_transfer(document: &mut Value) {
+    reseal(document, "transferDigest", &["transferDigest"]);
+}
+
+pub fn reseal_decision_request(document: &mut Value) {
+    reseal(document, "requestDigest", &["requestDigest"]);
+}
+
+pub fn reseal_decision_response(document: &mut Value) {
+    reseal(document, "responseDigest", &["responseDigest"]);
+}
+
+pub fn reseal_effect_attestation(document: &mut Value) {
+    reseal(document, "preimageDigest", &["preimageDigest", "signature"]);
 }
 
 #[allow(dead_code)]

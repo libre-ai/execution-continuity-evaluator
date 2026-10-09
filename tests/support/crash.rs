@@ -8,14 +8,13 @@ use libre_ai_agent_orchestrator::{
 use libre_ai_contract_types::ContractRegistry;
 use serde_json::{Value, json};
 
-use super::authorized_execution::{EventFixture, event_document, schema_fixture};
+use super::authorized_execution::{EventFixture, event_document, reseal_graph, schema_fixture};
 
 pub const EFFECT_STEP: &str = "urn:libre-ai:step:synthetic-effect-1";
 pub const TERMINAL_STEP: &str = "urn:libre-ai:step:synthetic-terminal-1";
 pub const ATTEMPT: &str = "urn:libre-ai:attempt:synthetic-attempt-1";
 pub const WORKER: &str = "urn:libre-ai:worker-invocation:synthetic-worker-1";
 pub const EDGE: &str = "urn:libre-ai:edge:synthetic-committed-1";
-pub const GRAPH_DIGEST: &str = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CrashPoint {
@@ -81,11 +80,12 @@ impl FakeJournal {
         )
         .then_some(ATTEMPT);
         let worker_invocation_id = attempt_id.map(|_| WORKER);
+        let graph_digest = effect_graph_digest();
         let document = event_document(&EventFixture {
             event_type,
             sequence,
             previous_event_digest,
-            graph_digest: GRAPH_DIGEST,
+            graph_digest: &graph_digest,
             step_id,
             attempt_id,
             worker_invocation_id,
@@ -125,6 +125,18 @@ impl FakeJournal {
 }
 
 pub fn effect_graph(registry: &ContractRegistry) -> Result<AuthorizedGraph, &'static str> {
+    parse_authorized_graph(registry, &effect_graph_document()).map_err(|_| "effect-graph-boundary")
+}
+
+/// Seal of the effect graph: the digest every journal event binds to.
+pub fn effect_graph_digest() -> String {
+    effect_graph_document()["graphDigest"]
+        .as_str()
+        .expect("sealed effect graph")
+        .to_owned()
+}
+
+fn effect_graph_document() -> Value {
     let mut document = schema_fixture("execution-graph.v1.schema.json");
     document["entryStepId"] = Value::String(EFFECT_STEP.to_owned());
     document["steps"] = json!([
@@ -153,6 +165,6 @@ pub fn effect_graph(registry: &ContractRegistry) -> Result<AuthorizedGraph, &'st
         "outcomeCode": "effect-committed",
         "toStepId": TERMINAL_STEP
     }]);
-    document["graphDigest"] = Value::String(GRAPH_DIGEST.to_owned());
-    parse_authorized_graph(registry, &document).map_err(|_| "effect-graph-boundary")
+    reseal_graph(&mut document);
+    document
 }

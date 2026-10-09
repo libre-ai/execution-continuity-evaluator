@@ -5,7 +5,7 @@ use libre_ai_agent_orchestrator::{
 };
 use libre_ai_contract_types::ContractRegistry;
 use serde_json::Value;
-use support::authorized_execution::valid_execution_transfer;
+use support::authorized_execution::{reseal_transfer, valid_execution_transfer};
 
 const ORGANIZATION: &str = "ten_1234567890abcdef";
 const MISSION: &str = "urn:libre-ai:mission:synthetic-mission-1";
@@ -13,7 +13,6 @@ const RUN: &str = "urn:libre-ai:run:synthetic-run-1";
 const PREDECESSOR_PLAN: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const SUCCESSOR_PLAN: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const TRANSFER_ID: &str = "urn:libre-ai:transfer:synthetic-transfer-1";
-const TRANSFER_DIGEST: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 const NOW: &str = "2026-09-10T10:05:00Z";
 
 fn registry() -> ContractRegistry {
@@ -47,6 +46,9 @@ fn evaluate(transfer: &Value, observation: TransferObservation<'_>, now: &str) -
 #[test]
 fn transfer_precedence_covers_every_locked_outcome() {
     let transfer = valid_execution_transfer();
+    let transfer_digest = transfer["transferDigest"]
+        .as_str()
+        .expect("sealed transfer digest");
 
     assert_eq!(
         evaluate(
@@ -56,7 +58,7 @@ fn transfer_precedence_covers_every_locked_outcome() {
                 1,
                 4,
                 true,
-                Some((TRANSFER_ID, 1, TRANSFER_DIGEST)),
+                Some((TRANSFER_ID, 1, transfer_digest)),
             ),
             "2026-09-10T10:15:00Z",
         )
@@ -105,6 +107,7 @@ fn transfer_precedence_covers_every_locked_outcome() {
     identity["successorPlanDigest"] = Value::String(
         "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".to_owned(),
     );
+    reseal_transfer(&mut identity);
     assert_eq!(
         evaluate(
             &identity,
@@ -117,6 +120,7 @@ fn transfer_precedence_covers_every_locked_outcome() {
 
     let mut generation = transfer.clone();
     generation["currentGeneration"] = Value::from(2);
+    reseal_transfer(&mut generation);
     assert_eq!(
         evaluate(
             &generation,
@@ -129,6 +133,7 @@ fn transfer_precedence_covers_every_locked_outcome() {
 
     let mut revision = transfer.clone();
     revision["expectedRevision"] = Value::from(3);
+    reseal_transfer(&mut revision);
     assert_eq!(
         evaluate(
             &revision,

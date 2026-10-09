@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::AuthorizedExecutionRefusal;
-use super::document::{AuthorizedGraph, StepKind, require_valid};
+use super::document::{AuthorizedGraph, StepKind, require_seal, require_valid};
 
 const EXECUTION_PLAN_SCHEMA: &str = "execution-plan-body.v2.schema.json";
 
@@ -336,7 +336,9 @@ pub fn evaluate_graph_authority(
     if !evaluate_graph(graph).is_valid() {
         return AuthorityDecision::Refused(AuthorityRefusal::GraphPolicyInvalid);
     }
-    if let Err(refusal) = require_valid(registry, EXECUTION_PLAN_SCHEMA, plan_document) {
+    if let Err(refusal) = require_valid(registry, EXECUTION_PLAN_SCHEMA, plan_document)
+        .and_then(|()| require_seal(plan_document, "bodyDigest", &["bodyDigest"]))
+    {
         return AuthorityDecision::BoundaryRefused(refusal);
     }
     let plan: WirePlan = match serde_json::from_value(plan_document.clone()) {

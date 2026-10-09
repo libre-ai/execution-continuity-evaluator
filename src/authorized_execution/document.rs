@@ -171,6 +171,7 @@ pub fn parse_authorized_graph(
     document: &Value,
 ) -> Result<AuthorizedGraph, AuthorizedExecutionRefusal> {
     require_valid(registry, EXECUTION_GRAPH_SCHEMA, document)?;
+    require_seal(document, "graphDigest", &["graphDigest"])?;
     let wire: WireGraph = serde_json::from_value(document.clone())
         .map_err(|_| AuthorizedExecutionRefusal::SchemaInvalid)?;
 
@@ -469,10 +470,7 @@ pub fn parse_authorized_execution_event(
     require_valid(registry, ORCHESTRATOR_EVENT_SCHEMA, document)?;
     let wire: WireEvent = serde_json::from_value(document.clone())
         .map_err(|_| AuthorizedExecutionRefusal::SchemaInvalid)?;
-    let computed_digest = canonical_event_digest(document)?;
-    if computed_digest != wire.event_digest {
-        return Err(AuthorizedExecutionRefusal::SchemaInvalid);
-    }
+    require_seal(document, "eventDigest", &["eventDigest"])?;
 
     let kind = normalize_event_kind(wire.kind, wire.data)?;
     Ok(AuthorizedExecutionEvent {
@@ -498,12 +496,39 @@ pub fn parse_authorized_execution_event(
     })
 }
 
-fn canonical_event_digest(document: &Value) -> Result<String, AuthorizedExecutionRefusal> {
+/// Refuses a document whose self-digest is not the digest of its content.
+///
+/// Every authorized-execution document carries a seal: the SHA-256 of its JCS
+/// form without the excluded fields (the rule of the contract authority's
+/// `authorized-execution-v1/digest-vectors.v1.json`). Comparing a claimed seal
+/// only with another claimed seal would let the content change after sealing
+/// — an approved decision request and the applied one would no longer be the
+/// same object — so every evaluator recomputes it before reading the content.
+pub(super) fn require_seal(
+    document: &Value,
+    field: &str,
+    excluded: &[&str],
+) -> Result<(), AuthorizedExecutionRefusal> {
+    let Some(claimed) = document.get(field).and_then(Value::as_str) else {
+        return Err(AuthorizedExecutionRefusal::SchemaInvalid);
+    };
+    if canonical_digest(document, excluded)? != claimed {
+        return Err(AuthorizedExecutionRefusal::SchemaInvalid);
+    }
+    Ok(())
+}
+
+fn canonical_digest(
+    document: &Value,
+    excluded: &[&str],
+) -> Result<String, AuthorizedExecutionRefusal> {
     let mut unsigned = document.clone();
     let Some(object) = unsigned.as_object_mut() else {
         return Err(AuthorizedExecutionRefusal::SchemaInvalid);
     };
-    object.remove("eventDigest");
+    for field in excluded {
+        object.remove(*field);
+    }
     let canonical =
         serde_jcs::to_vec(&unsigned).map_err(|_| AuthorizedExecutionRefusal::SchemaInvalid)?;
     let mut digest = String::with_capacity(64);

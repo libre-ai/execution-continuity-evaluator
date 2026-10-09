@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::AuthorizedExecutionRefusal;
-use super::document::require_valid;
+use super::document::{require_seal, require_valid};
 
 const EXECUTION_TRANSFER_SCHEMA: &str = "execution-transfer.v1.schema.json";
 
@@ -149,7 +149,9 @@ pub fn evaluate_execution_transfer(
     observation: TransferObservation<'_>,
     evaluation_time: &str,
 ) -> TransferDecision {
-    if require_valid(registry, EXECUTION_TRANSFER_SCHEMA, transfer_document).is_err() {
+    if require_valid(registry, EXECUTION_TRANSFER_SCHEMA, transfer_document).is_err()
+        || require_seal(transfer_document, "transferDigest", &["transferDigest"]).is_err()
+    {
         return boundary(AuthorizedExecutionRefusal::SchemaInvalid);
     }
     let transfer: WireTransfer = match serde_json::from_value(transfer_document.clone()) {
