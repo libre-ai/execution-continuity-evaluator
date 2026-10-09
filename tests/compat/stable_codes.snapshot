@@ -91,7 +91,7 @@ budget-arithmetic-invalid
 event-valid
 idempotent-duplicate
 
-# DecisionRefusal (9)
+# DecisionRefusal (12)
 organization-mismatch
 attempt-mismatch
 request-replaced
@@ -101,6 +101,9 @@ request-consumed
 choice-unknown
 actor-unauthorized
 revision-stale
+graph-binding-mismatch
+step-not-decision
+decision-policy-mismatch
 
 # DecisionDecision — own codes only (2)
 decision-valid
