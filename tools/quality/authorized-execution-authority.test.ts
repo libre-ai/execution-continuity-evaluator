@@ -39,7 +39,7 @@ describe("authorized execution authority", () => {
   test("local SDK bytes match the reviewed current composition", async () => {
     const pinPath = "docs/dependency-inputs/sdk-input-pin.json";
     // Regenerated for schemas-and-contracts@a82d7b54, the revision composed by
-    // governance generation Q (769e452d), which descends from 197d8299
+    // governance generation Q (5ef12472), which descends from 197d8299
     // (tool-invocation-observation candidate, ADR-0046): every tracked file of
     // crates/sdk-rs at that revision.
     expect(await sha256(pinPath)).toBe(
