@@ -525,6 +525,17 @@ fn canonical_digest(
     document: &Value,
     excluded: &[&str],
 ) -> Result<String, AuthorizedExecutionRefusal> {
+    sha256_hex(&canonical_preimage(document, excluded)?)
+}
+
+/// The RFC 8785 (JCS) bytes of `document` without the `excluded` top-level
+/// fields: the preimage a seal digests and a harness signature covers. Shared
+/// with the tool-observation evaluator, whose contract declares "the same shape
+/// as `effect-attestation.v1`", so that both are sealed by one rule.
+pub(crate) fn canonical_preimage(
+    document: &Value,
+    excluded: &[&str],
+) -> Result<Vec<u8>, AuthorizedExecutionRefusal> {
     let mut unsigned = document.clone();
     let Some(object) = unsigned.as_object_mut() else {
         return Err(AuthorizedExecutionRefusal::SchemaInvalid);
@@ -532,10 +543,13 @@ fn canonical_digest(
     for field in excluded {
         object.remove(*field);
     }
-    let canonical =
-        serde_jcs::to_vec(&unsigned).map_err(|_| AuthorizedExecutionRefusal::SchemaInvalid)?;
+    serde_jcs::to_vec(&unsigned).map_err(|_| AuthorizedExecutionRefusal::SchemaInvalid)
+}
+
+/// Lower-case hexadecimal SHA-256 of `bytes`.
+pub(crate) fn sha256_hex(bytes: &[u8]) -> Result<String, AuthorizedExecutionRefusal> {
     let mut digest = String::with_capacity(64);
-    for byte in Sha256::digest(canonical) {
+    for byte in Sha256::digest(bytes) {
         write!(&mut digest, "{byte:02x}").map_err(|_| AuthorizedExecutionRefusal::SchemaInvalid)?;
     }
     Ok(digest)

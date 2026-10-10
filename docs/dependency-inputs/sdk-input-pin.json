@@ -3,24 +3,12 @@
   "origin": "schemas-and-contracts/crates/sdk-rs",
   "files": [
     {
-      "path": ".github/dependabot.yml",
-      "sha256": "a2fe13899d62ec7860e2ab2bceb7648a82cc08e88c4faac38a1be43f048f4a4d"
-    },
-    {
-      "path": ".github/workflows/ci.yml",
-      "sha256": "7dfedef2ebf9e1330ac070c47bf134acbb7ca941c370c361df9a5c86c5e47724"
-    },
-    {
-      "path": ".github/workflows/context-hygiene.yml",
-      "sha256": "84fefbc52068cf4ccadc0683042676028ce2ed8c12dc4ed0f708cc7fa6b14015"
-    },
-    {
       "path": ".gitignore",
       "sha256": "19b23de57a80020117177f6f3a34b5b5ce98c2623a8e8e6e211453bbf6458bfa"
     },
     {
       "path": "AGENTS.md",
-      "sha256": "0b25362730a6b9e00c781f570844e4f4598d9c90fba4539aecfd56151b5471e7"
+      "sha256": "7ba129b1d9225273e3aaef96a09f7cbf920bbf8424d4fc4cabb8c1cb12528f53"
     },
     {
       "path": "CLAUDE.md",
@@ -44,7 +32,7 @@
     },
     {
       "path": "REUSE.toml",
-      "sha256": "1d42bc1a172d3af8f4a0e9cd751a25e47847ded7f7a41a507e8a3faa4d784c3b"
+      "sha256": "79b2618161ff470d3cde634d20b9f5d9ea08fcee4ed698a11cf4330989ad8a81"
     },
     {
       "path": "biome.json",
@@ -53,10 +41,6 @@
     {
       "path": "build.rs",
       "sha256": "3e3fe03397d6da2dccf6a41cc704e90a67758ea13a09e513c20f28906f3bc8b9"
-    },
-    {
-      "path": "bun.lock",
-      "sha256": "75324c908c474df9f68ad2fbdff59462326fe916edb335795b57e85d436eccb3"
     },
     {
       "path": "bunfig.toml",
@@ -68,11 +52,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "b1cc21e9016bde1abf8953d15ea606034ebda31fe6289092e9c6dac63aecd874"
-    },
-    {
-      "path": "project.v1.yaml",
-      "sha256": "7d77b8c44cd2a27d060a411d2d25225ead7d94dfbcc20ac4eba643ae5205f5e0"
+      "sha256": "b4738dea3290ed7c3eb1220cecd3b1d82ac9c3e5d6eb37d2990f4bf268359d83"
     },
     {
       "path": "rust-toolchain.toml",
@@ -211,6 +191,10 @@
       "sha256": "37b6a7a63d0c9604f928a03758ca0f91cdba36f0cf1b2f2af06a969d1bc3d85a"
     },
     {
+      "path": "schemas/execution-authorization.v3.schema.json",
+      "sha256": "eb3f91a4411198a024de7ac11bba53324b7753089f87744e7183e5e437780ac9"
+    },
+    {
       "path": "schemas/execution-graph.v1.schema.json",
       "sha256": "fb1abf6a75bfc4890e5c08acf43418dfc03719a85944d881baca7da7c3f153b6"
     },
@@ -221,6 +205,14 @@
     {
       "path": "schemas/execution-plan-body.v2.schema.json",
       "sha256": "cbc47c01b2dd5a3bf01fc210ca087cb3c90dedaef4f84e0213df43609bc5791d"
+    },
+    {
+      "path": "schemas/execution-plan-body.v3.schema.json",
+      "sha256": "651e9adc15bfdd90da36670e277a47b54878b09f1fb10bc598aacde0416c8681"
+    },
+    {
+      "path": "schemas/execution-plan-body.v4.schema.json",
+      "sha256": "5039c0b2d2eb1a0f5552f9b11e94496570f5e637f248438b45cce2864aa3eae3"
     },
     {
       "path": "schemas/execution-transfer.v1.schema.json",
@@ -243,6 +235,10 @@
       "sha256": "effbf2f1ff100588df44e37a64f165a0f0261e84b0781054a80c911cf1305634"
     },
     {
+      "path": "schemas/harness-profile.v3.schema.json",
+      "sha256": "3d69ecacd2a1cead282f3ee4aa7d510a903da13cc1d4db0c0e1b7449902342d6"
+    },
+    {
       "path": "schemas/human-decision-request.v1.schema.json",
       "sha256": "6afb4b776dc08d3af967eeb03e88ae3540ad056288012c3882d7fb1dd89f8c4e"
     },
@@ -263,12 +259,24 @@
       "sha256": "06a30cf82a0da1cd7a96522c2314e0ce7ce005a0a5ba38e2c31f89d668049c1e"
     },
     {
+      "path": "schemas/mission-handoff-binding.v1.schema.json",
+      "sha256": "ba098a67a3a700cea90202a2fd9d93125eded44f650386705d0499acabb845a2"
+    },
+    {
       "path": "schemas/mission-record.v1.schema.json",
       "sha256": "7679cb0719cf71ed26032a55819614b33bcf3427b1d12a5cf74346817bb5c45c"
     },
     {
       "path": "schemas/mission-record.v2.schema.json",
       "sha256": "85322af7a76ca9ca4878371284d17f4ea724e8f8ad9b726bef2df408ed832b2b"
+    },
+    {
+      "path": "schemas/mission-record.v3.schema.json",
+      "sha256": "b8c8f04034bf7305ef10133d96038aedadffd549c4c4643062fd142625e79b46"
+    },
+    {
+      "path": "schemas/missions-api.v3.schema.json",
+      "sha256": "114084e5378408091ef84c227cf35380166c42e1a4766fe0def26d6202c067f4"
     },
     {
       "path": "schemas/model-snapshot.v1.schema.json",
@@ -305,6 +313,10 @@
     {
       "path": "schemas/orchestrator-event.v3.schema.json",
       "sha256": "df7b8bc07647a4e1d606c7420e3005290f58ecf95411720f36beb75b5e8d87ea"
+    },
+    {
+      "path": "schemas/p02-job.v1.schema.json",
+      "sha256": "3a0233ef54f0bc2079badd9e5b043caec3195fea6bcf14994ceb1dbcdee8e822"
     },
     {
       "path": "schemas/policy-definition.v1.schema.json",
@@ -379,12 +391,20 @@
       "sha256": "9c8fee7adce323a614e945bdd7e79683624df29c3a5fb6a40ec61972b0e080bf"
     },
     {
+      "path": "schemas/retention-policy.v4.schema.json",
+      "sha256": "b9934b42ce5b52ecdd8294d828f19eb20f289e2617240b6f9e109f435ab6d3d1"
+    },
+    {
       "path": "schemas/session-event.v1.schema.json",
       "sha256": "d38224424fb531e922662ac0b150fa8087a1e363192b45c3a0e3af872b49ea24"
     },
     {
       "path": "schemas/session-export.v1.schema.json",
       "sha256": "5b7b98eeb9685962bababe7cfcff83cf9c6b133e693f89a24880e2720f652c4d"
+    },
+    {
+      "path": "schemas/signalement-local-export.v1.schema.json",
+      "sha256": "ddb63e43cfa76253079df8b10cb31ee4575927cfc22226d4a7942e4c51d83d0e"
     },
     {
       "path": "schemas/spec-package.v1.schema.json",
@@ -399,12 +419,16 @@
       "sha256": "7d2e0cf1331f9f45f0dfaaefe285186589b1471dcf16f39ad5121163f266a14c"
     },
     {
+      "path": "schemas/tool-invocation-observation.v1.schema.json",
+      "sha256": "466f71fd98a2df2f042eab589af421099d04bd4b47ea83d2831da2e62ae030b6"
+    },
+    {
       "path": "schemas/work-package-plan.v1.schema.json",
       "sha256": "306d9fe38132073bc228b917495f0c766fb9843ef254604e37aac376a4db7de3"
     },
     {
       "path": "scripts/authorized-execution-lock.test.ts",
-      "sha256": "f45203c19fccd2736fafc2d896e83205ec3f06566e433a403cd78ba6f23e01db"
+      "sha256": "a3793aa85e1b5b2cad7cc81c8f3e70bbf65c84a18d986d8248ba42e95338e663"
     },
     {
       "path": "scripts/check-vendored-schemas.test.ts",
@@ -444,7 +468,7 @@
     },
     {
       "path": "tests/schema_fixtures.rs",
-      "sha256": "990881639ff0e2ad592ed9e480bbb1edc7fec6dd32c0f473177d13c93990c076"
+      "sha256": "ad430867477789cf8b21d6dfbf0edbb2327b9b6488632792af200de38bd4cc29"
     },
     {
       "path": "tests/schema_projection.rs",

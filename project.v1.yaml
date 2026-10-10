@@ -24,7 +24,8 @@ scope:
   - "API publique garantie de la crate libre-ai-agent-orchestrator (src/lib.rs) — contrôle : les fonctions parse_control_document, evaluate_control, evaluate_simulated_effect et command_fingerprint, et les types ControlCommand, ControlAction, ControlDecision, ControlApplication, ControlEffect, ControlPhase, ControlRefusal, RunControlState, StartPreflight, CommandReceipt, CommandCollisionObservation et SimulatedEffectDecision."
   - "API publique garantie — budget : la fonction evaluate_budget_event et les types PlanBudgetLimits, BudgetDecision et EventStoreObservation."
   - "API publique garantie de la crate 0.3.0 — authorized-execution : documents validés (sceau recalculé), graphe et routage, autorité, causalité et rejeu, décision humaine — avec, depuis 0.3.0, evaluate_bound_human_decision qui lie la demande à la politique de son pas avant d'évaluer la décision —, transfert de génération et continuité d'effet ; tous les symboles réexportés et codes stables sont épinglés par les instantanés de compatibilité."
-  - "Stabilité déclarée : additive en 0.3.0, publish = false, consommation par git-dep épinglée par révision ; toute rupture exige une montée de version et une entrée dans docs/compat/BREAKS.md."
+  - "API publique garantie depuis 0.4.0 — observation d'appels d'outil (ADR-0046) : evaluate_tool_observations rejoue les fenêtres tool-invocation-observation.v1 d'une invocation et rend l'un des 7 verdicts fermés, avec ses compteurs ; la signature du harnais est vérifiée par un HarnessSignatureVerifier fourni par l'appelant, aucune clé n'entre dans la crate, et le verdict, donnée operational, ne bloque rien seul."
+  - "Stabilité déclarée : additive en 0.4.0, publish = false, consommation par git-dep épinglée par révision ; toute rupture exige une montée de version et une entrée dans docs/compat/BREAKS.md."
   - "Décision de contrôle : validation des documents orchestrator-control.v1 par le registre de contrats verrouillé, sans refléter la valeur rejetée ; liaisons d'identité exactes entre run, tenant, mission, plan et autorisation ; faits de préflight faisant autorité avant d'accorder l'allocation d'un identifiant de run ; panne de magasin explicite, autorisation révoquée, révision périmée, annulation monotone, et rejeu idempotent rendu comme reçu."
   - "Décision de budget : arithmétique d'événements causaux et plafonds liés au plan, évalués contre l'état accepté que l'appelant présente — et refus explicite lorsque ce magasin est déclaré indisponible."
   - "Phase 4A / WP-G3-O02 : frontière de validation stricte, décisions déterministes et sans I/O ; rejeu indépendant des 54 vecteurs Contracts et cinq scénarios de panne sur faux journal/faux exécuteur."
@@ -46,28 +47,33 @@ dependencies:
     # de gouvernance extrait ; la CI compile ce checkout frère à la place de la
     # source git (remplacement de source cargo).
     why: "types Rust des contrats locked, registre embarqué et validation de documents"
-    pinned: "github:libre-ai/schemas-and-contracts#4f3d53c3ecd96e7064057afd1587de41b66f13c1"
+    pinned: "github:libre-ai/schemas-and-contracts#a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e"
   - on: libre-ai/schemas-and-contracts
     # 2026-10-07 : le dépôt nommé ici a été retiré (ADR-0041). Le pin précédent
     # désignait un commit désormais inatteignable ; il nomme son successeur, à une
     # révision qui existe. Aucun manifeste de ce dépôt ne dépendait du retiré :
     # mesuré sur 105 manifestes des 29 dépôts de l'organisation.
-    why: "autorité des schémas et des 54 vecteurs sémantiques authorized-execution rejoués directement par les tests"
-    pinned: "github:libre-ai/schemas-and-contracts#4f3d53c3ecd96e7064057afd1587de41b66f13c1"
+    # 2026-10-09 : la révision 197d8299 ajoute le contrat candidat
+    # `tool-invocation-observation-v1` (ADR-0046), dont les vecteurs sémantiques
+    # forment la suite de conformité de `src/tool_observation.rs`.
+    # 2026-10-10 : la génération Q (5ef12472) compose schemas-and-contracts à
+    # a82d7b54, descendant de 197d8299 ; le pin suit la révision composée.
+    why: "autorité des schémas, des 54 vecteurs sémantiques authorized-execution et des 14 vecteurs sémantiques tool-invocation-observation rejoués directement par les tests"
+    pinned: "github:libre-ai/schemas-and-contracts#a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e"
   - on: libre-ai/schemas-and-contracts
     # 2026-10-07 : `libre-ai/envelope` a été retiré (ADR-0041) et l'enveloppe
     # d'intégrité vit dans `schemas-and-contracts`. `tools/review/package.json` la
     # déclare (`file:../../../schemas-and-contracts/packages/envelope`) : elle est
     # résolue dans le checkout frère de la composition, à cette révision.
     why: "K3 : enveloppe d'intégrité qui rend une preuve partagée gardée avant lecture par un modèle de revue"
-    pinned: "github:libre-ai/schemas-and-contracts#4f3d53c3ecd96e7064057afd1587de41b66f13c1"
+    pinned: "github:libre-ai/schemas-and-contracts#a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e"
   - on: libre-ai/project-governance
     # 2026-10-07 : le dépôt nommé ici a été retiré (ADR-0041). Le pin précédent
     # désignait un commit désormais inatteignable ; il nomme son successeur, à une
     # révision qui existe. Aucun manifeste de ce dépôt ne dépendait du retiré :
     # mesuré sur 105 manifestes des 29 dépôts de l'organisation.
     why: "gabarit de gates consommé en workflows réutilisables et git-dep d'outillage — jamais dupliqué"
-    pinned: "github:libre-ai/project-governance#1c8b37c80beb41f640982768ec27304a911e0b8e"
+    pinned: "github:libre-ai/project-governance#5ef12472d043f3ed1799ca09cff89c27ff024d79"
 maturity: usable
 confidence: medium
 exposure: spec-published

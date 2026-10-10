@@ -55,6 +55,55 @@ Returned applications are pure proposals. They require a separately
 authorized persistence and effect boundary before they can change external
 state.
 
+## Tool-observation evaluator
+
+The `0.4.0` API adds `evaluate_tool_observations`, the pure evaluator of
+[ADR-0046](https://github.com/libre-ai/project-governance/blob/HEAD/docs/adr/0046-tool-invocation-observation.md).
+It replays the harness-signed `tool-invocation-observation.v1` windows of one
+worker invocation and renders one closed verdict, the first that applies in
+this order: `attestation-invalid`, `observation-replayed`,
+`observation-chain-broken`, `observation-incomplete`, `tool-undeclared`,
+`no-progress`, `progress`. Every verdict carries its counters (documents read,
+entries read, calls covered, maximum repetition); a schema-invalid document is
+refused before evaluation with `orchestrator.tool-observation.schema-invalid`.
+
+- **Inputs.** The documents, the plan's tool names, the `toolCalls` counter the
+  orchestrator received (OBS-e: a covered count that differs is
+  `observation-incomplete`, never a correction), and a caller-supplied
+  `HarnessSignatureVerifier` bound to the run's harness attestation. The crate
+  holds no key: argument and result digests are compared, never computed
+  (OBS-b), and the capability boundary admits no signature dependency.
+- **Authority.** The verdict is `operational` data and blocks nothing on its
+  own (K2). The harness holds the typed `no-progress` stop on its sliding
+  window (ADR-0046 decision 2, owner decision Q5); a disagreement between the
+  harness reaction and this verdict is itself a finding.
+- **Conformance.** `tests/tool_observation_vectors.rs` replays every semantic
+  vector of the pinned `schemas-and-contracts` revision and requires 14 of 14,
+  and refuses each of its 40 schema-invalid vectors.
+
+```rust
+use libre_ai_agent_orchestrator::{
+    HarnessSignatureVerifier, ToolObservationInput, evaluate_tool_observations,
+};
+use libre_ai_contract_types::ContractRegistry;
+
+struct NoKnownKey;
+impl HarnessSignatureVerifier for NoKnownKey {
+    fn verify(&self, _key_id: &str, _preimage: &[u8], _signature: &str) -> bool {
+        false
+    }
+}
+
+let registry = ContractRegistry::embedded().expect("embedded schemas are build-time authorities");
+let decision = evaluate_tool_observations(
+    &registry,
+    ToolObservationInput { documents: &[], plan_tool_names: &[], observed_tool_calls: 0 },
+    &NoKnownKey,
+);
+// No document means no final window: the stream is not complete.
+assert_eq!(decision.code(), "observation-incomplete");
+```
+
 ## Verify
 
 ```sh

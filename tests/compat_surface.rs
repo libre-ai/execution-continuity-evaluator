@@ -12,7 +12,8 @@ use libre_ai_agent_orchestrator::{
     CausalDecision, CausalRefusal, ControlApplication, ControlDecision, ControlEffect,
     ControlRefusal, DecisionDecision, DecisionObservation, DecisionRefusal, EffectDecision,
     EffectObservation, EffectRefusal, EventCollisionObservation, GraphDecision, GraphRefusal,
-    GraphTransitionDecision, SimulatedEffectDecision, TransferDecision, TransferObservation,
+    GraphTransitionDecision, SimulatedEffectDecision, ToolObservationDecision,
+    ToolObservationRefusal, ToolObservationVerdict, TransferDecision, TransferObservation,
     TransferRefusal, evaluate_effect_attestation, evaluate_execution_transfer,
     evaluate_human_decision, parse_authorized_graph, select_graph_transition,
 };
@@ -68,8 +69,8 @@ fn snapshot_lines(text: &str) -> Vec<String> {
 }
 
 #[test]
-fn authorized_execution_surface_is_versioned_as_0_3_0() {
-    assert_eq!(env!("CARGO_PKG_VERSION"), "0.3.0");
+fn tool_observation_surface_is_versioned_as_0_4_0() {
+    assert_eq!(env!("CARGO_PKG_VERSION"), "0.4.0");
 }
 
 #[test]
@@ -331,6 +332,33 @@ fn effect_decision_variants_are_covered(value: &EffectDecision) {
         | EffectDecision::ContinuityBarrier
         | EffectDecision::Refused(_)
         | EffectDecision::BoundaryRefused(_) => {}
+    }
+}
+
+#[allow(dead_code)]
+fn tool_observation_verdict_variants_are_covered(value: ToolObservationVerdict) {
+    match value {
+        ToolObservationVerdict::AttestationInvalid
+        | ToolObservationVerdict::ObservationReplayed
+        | ToolObservationVerdict::ObservationChainBroken
+        | ToolObservationVerdict::ObservationIncomplete
+        | ToolObservationVerdict::ToolUndeclared
+        | ToolObservationVerdict::NoProgress
+        | ToolObservationVerdict::Progress => {}
+    }
+}
+
+#[allow(dead_code)]
+fn tool_observation_refusal_variants_are_covered(value: ToolObservationRefusal) {
+    match value {
+        ToolObservationRefusal::SchemaInvalid => {}
+    }
+}
+
+#[allow(dead_code)]
+fn tool_observation_decision_variants_are_covered(value: &ToolObservationDecision) {
+    match value {
+        ToolObservationDecision::Evaluated(_) | ToolObservationDecision::Refused(_) => {}
     }
 }
 
@@ -598,6 +626,20 @@ fn stable_codes_match_the_committed_snapshot() {
     actual.push(EffectDecision::Idempotent.code().to_owned());
     actual.push(EffectDecision::ContinuityBarrier.code().to_owned());
     actual.push(valid_effect_code().to_owned());
+    actual.extend(
+        [
+            ToolObservationVerdict::AttestationInvalid,
+            ToolObservationVerdict::ObservationReplayed,
+            ToolObservationVerdict::ObservationChainBroken,
+            ToolObservationVerdict::ObservationIncomplete,
+            ToolObservationVerdict::ToolUndeclared,
+            ToolObservationVerdict::NoProgress,
+            ToolObservationVerdict::Progress,
+        ]
+        .iter()
+        .map(|verdict| verdict.code().to_owned()),
+    );
+    actual.push(ToolObservationRefusal::SchemaInvalid.code().to_owned());
     actual.sort_unstable();
 
     let mut expected = snapshot_lines(STABLE_CODES_SNAPSHOT);

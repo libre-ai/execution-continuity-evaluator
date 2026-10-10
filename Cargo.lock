@@ -322,7 +322,7 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
 name = "libre-ai-agent-orchestrator"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "libre-ai-contract-types",
@@ -335,7 +335,7 @@ dependencies = [
 [[package]]
 name = "libre-ai-contract-types"
 version = "0.1.0"
-source = "git+https://github.com/libre-ai/schemas-and-contracts?rev=4f3d53c3ecd96e7064057afd1587de41b66f13c1#4f3d53c3ecd96e7064057afd1587de41b66f13c1"
+source = "git+https://github.com/libre-ai/schemas-and-contracts?rev=a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e#a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e"
 dependencies = [
  "chrono",
  "jsonschema",
