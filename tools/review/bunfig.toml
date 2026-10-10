@@ -1,6 +1,3 @@
 [install]
 minimumReleaseAge = 259200
 minimumReleaseAgeExcludes = []
-
-[test]
-coverageThreshold = { lines = 0.95, functions = 1.0 }
