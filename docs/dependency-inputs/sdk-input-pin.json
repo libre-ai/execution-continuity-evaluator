@@ -211,6 +211,10 @@
       "sha256": "651e9adc15bfdd90da36670e277a47b54878b09f1fb10bc598aacde0416c8681"
     },
     {
+      "path": "schemas/execution-plan-body.v4.schema.json",
+      "sha256": "5039c0b2d2eb1a0f5552f9b11e94496570f5e637f248438b45cce2864aa3eae3"
+    },
+    {
       "path": "schemas/execution-transfer.v1.schema.json",
       "sha256": "443ac48dbd9acb006d7d64f570ae41ce99493579289cab05b7085a23f3690b34"
     },
@@ -229,6 +233,10 @@
     {
       "path": "schemas/harness-profile.v2.schema.json",
       "sha256": "effbf2f1ff100588df44e37a64f165a0f0261e84b0781054a80c911cf1305634"
+    },
+    {
+      "path": "schemas/harness-profile.v3.schema.json",
+      "sha256": "3d69ecacd2a1cead282f3ee4aa7d510a903da13cc1d4db0c0e1b7449902342d6"
     },
     {
       "path": "schemas/human-decision-request.v1.schema.json",
@@ -460,7 +468,7 @@
     },
     {
       "path": "tests/schema_fixtures.rs",
-      "sha256": "0e5d4edfd0e36317c53d53e71914a3db461d717243d845bf6f81f2d67873ca98"
+      "sha256": "ad430867477789cf8b21d6dfbf0edbb2327b9b6488632792af200de38bd4cc29"
     },
     {
       "path": "tests/schema_projection.rs",

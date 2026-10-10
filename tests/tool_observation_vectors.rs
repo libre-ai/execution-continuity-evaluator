@@ -34,7 +34,7 @@ const VECTORS: &str = "node_modules/@libre-ai/contracts-authority/contracts/fixt
 const PLACEHOLDER_KEY_ID: &str = "harness_key_1";
 const PLACEHOLDER_SIGNATURE: &str =
     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-/// Re-measured on `schemas-and-contracts@197d8299`: 14 semantic, 4 valid,
+/// Re-measured on `schemas-and-contracts@a82d7b54`: 14 semantic, 4 valid,
 /// 40 invalid. A different count is a different suite, not a pass.
 const SEMANTIC_VECTOR_COUNT: usize = 14;
 const VALID_VECTOR_COUNT: usize = 4;

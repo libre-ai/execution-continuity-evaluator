@@ -47,7 +47,7 @@ dependencies:
     # de gouvernance extrait ; la CI compile ce checkout frère à la place de la
     # source git (remplacement de source cargo).
     why: "types Rust des contrats locked, registre embarqué et validation de documents"
-    pinned: "github:libre-ai/schemas-and-contracts#197d82994668cc895a70d75dbbdfc431266192be"
+    pinned: "github:libre-ai/schemas-and-contracts#a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e"
   - on: libre-ai/schemas-and-contracts
     # 2026-10-07 : le dépôt nommé ici a été retiré (ADR-0041). Le pin précédent
     # désignait un commit désormais inatteignable ; il nomme son successeur, à une
@@ -56,22 +56,24 @@ dependencies:
     # 2026-10-09 : la révision 197d8299 ajoute le contrat candidat
     # `tool-invocation-observation-v1` (ADR-0046), dont les vecteurs sémantiques
     # forment la suite de conformité de `src/tool_observation.rs`.
+    # 2026-10-10 : la génération Q (769e452d) compose schemas-and-contracts à
+    # a82d7b54, descendant de 197d8299 ; le pin suit la révision composée.
     why: "autorité des schémas, des 54 vecteurs sémantiques authorized-execution et des 14 vecteurs sémantiques tool-invocation-observation rejoués directement par les tests"
-    pinned: "github:libre-ai/schemas-and-contracts#197d82994668cc895a70d75dbbdfc431266192be"
+    pinned: "github:libre-ai/schemas-and-contracts#a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e"
   - on: libre-ai/schemas-and-contracts
     # 2026-10-07 : `libre-ai/envelope` a été retiré (ADR-0041) et l'enveloppe
     # d'intégrité vit dans `schemas-and-contracts`. `tools/review/package.json` la
     # déclare (`file:../../../schemas-and-contracts/packages/envelope`) : elle est
     # résolue dans le checkout frère de la composition, à cette révision.
     why: "K3 : enveloppe d'intégrité qui rend une preuve partagée gardée avant lecture par un modèle de revue"
-    pinned: "github:libre-ai/schemas-and-contracts#197d82994668cc895a70d75dbbdfc431266192be"
+    pinned: "github:libre-ai/schemas-and-contracts#a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e"
   - on: libre-ai/project-governance
     # 2026-10-07 : le dépôt nommé ici a été retiré (ADR-0041). Le pin précédent
     # désignait un commit désormais inatteignable ; il nomme son successeur, à une
     # révision qui existe. Aucun manifeste de ce dépôt ne dépendait du retiré :
     # mesuré sur 105 manifestes des 29 dépôts de l'organisation.
     why: "gabarit de gates consommé en workflows réutilisables et git-dep d'outillage — jamais dupliqué"
-    pinned: "github:libre-ai/project-governance#1c8b37c80beb41f640982768ec27304a911e0b8e"
+    pinned: "github:libre-ai/project-governance#769e452d19e5fa9fb4af2f33d7a061c9a5b3fb47"
 maturity: usable
 confidence: medium
 exposure: spec-published
