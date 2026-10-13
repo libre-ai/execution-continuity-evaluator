@@ -56,8 +56,9 @@ dependencies:
     # 2026-10-09 : la révision 197d8299 ajoute le contrat candidat
     # `tool-invocation-observation-v1` (ADR-0046), dont les vecteurs sémantiques
     # forment la suite de conformité de `src/tool_observation.rs`.
-    # 2026-10-10 : la génération Q (5ef12472) compose schemas-and-contracts à
-    # a82d7b54, descendant de 197d8299 ; le pin suit la révision composée.
+    # 2026-10-10 : la génération Q compose schemas-and-contracts à a82d7b54,
+    # descendant de 197d8299 ; le pin suit la révision composée (la génération R
+    # la compose à la même révision).
     why: "autorité des schémas, des 54 vecteurs sémantiques authorized-execution et des 14 vecteurs sémantiques tool-invocation-observation rejoués directement par les tests"
     pinned: "github:libre-ai/schemas-and-contracts#a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e"
   - on: libre-ai/schemas-and-contracts
@@ -73,7 +74,7 @@ dependencies:
     # révision qui existe. Aucun manifeste de ce dépôt ne dépendait du retiré :
     # mesuré sur 105 manifestes des 29 dépôts de l'organisation.
     why: "gabarit de gates consommé en workflows réutilisables et git-dep d'outillage — jamais dupliqué"
-    pinned: "github:libre-ai/project-governance#5ef12472d043f3ed1799ca09cff89c27ff024d79"
+    pinned: "github:libre-ai/project-governance#0db2e10e3ea785c31c101914483ed501ec4cbb7a"
 maturity: usable
 confidence: medium
 exposure: spec-published
