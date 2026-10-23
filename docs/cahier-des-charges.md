@@ -9,7 +9,7 @@ table de la section 13, qui portent la décision du propriétaire du 2026-10-23 
 `tools/review` premier consommateur LangGraph JS de la flotte, sous ADR-0045) ; la comparaison section
 à section avec la mission, relevée le 2026-10-23, montre en plus des écarts dans les sections 1.1,
 1.5, 3, 7.1, 8.1, 8.3, 10, 11.1 et 11.2, non classés ici entre décision LangGraph et réécriture de forme ;
-les critères CA-18 à CA-30, ajoutés à la suite des dix-sept critères de la mission, dont le texte est
+les critères CA-18 à CA-31, ajoutés à la suite des dix-sept critères de la mission, dont le texte est
 inchangé aux réécritures de forme près ; et ces réécritures, exigées par la norme des paquets de
 travail de `libre-ai/project-governance` (`docs/specifications/WORK-PACKAGES.md`) : chaque paramètre
 écrit entre chevrons y est écrit en capitales (`ORG/DEPOT`, `DEPOT-CONSOMMATEUR`, `REV`,
@@ -186,7 +186,7 @@ déclaré au commit lu (Q11). `tools/review` lance `pi` seulement (`fanout.ts:11
   admis par ADR-0058 : graphe rôles → lots → vérification → agrégation, passes `pi` en nœuds-outils,
   contrat observable inchangé (plan JSON, verdicts, ajout seul, nettoyage `finally`), six conditions
   d'entrée d'ADR-0058 section 3, INV-a à INV-c d'ADR-0045 avec leurs vecteurs rouges, preuve de
-  retrait d'ADR-0058 section 4 (CA-18 à CA-30).
+  retrait d'ADR-0058 section 4 (CA-18 à CA-31).
 - La preuve de performance de référence (banc).
 
 ### 4.2 Hors périmètre (non-objectifs, `project.v1.yaml:34-41`, repris sans réécriture)
@@ -387,8 +387,9 @@ mémoire sont internes à l'invocation et n'apparaissent dans aucune entrée ni 
   contenu revu ni de la sortie du modèle), le critère CA-28 pour INV-c (seuls les champs à
   vocabulaire fermé du verdict sont lus par l'agrégation ; les textes libres sont des données non
   fiables écrites pour une lecture humaine), et les vecteurs rouges 1 à 3 d'ADR-0045
-  (Conséquences), chacun prouvé rouge sans son contrôle ; le vecteur 4 (suite d'attaques adaptatives)
-  n'a ni critère ni paquet dans ce jalon (R-15).
+  (Conséquences), chacun prouvé rouge sans son contrôle, et le critère CA-31 pour le vecteur 4
+  (suite d'attaques adaptatives, taux d'utilité et taux d'attaque réussie rapportés ensemble ;
+  arbitrage du propriétaire du 2026-10-23 : ajouté à WP-4, R-15).
 - Vérification Ed25519 : hors crate par choix de frontière (`tool_observation.rs:19-26`) ; le
   consommateur fournit le `HarnessSignatureVerifier` et lie `signing_key_id` à l'attestation de
   harness du run. Conséquence mesurée : le gate `check:capabilities` refuse toute section de
@@ -433,7 +434,7 @@ deux derniers avis visent donc le graphe de `tools/review`, et ADR-0058 ne les l
 
 Numérotation : les numéros CA-1 à CA-11 de la première rédaction sont conservés ; les critères issus
 de la division de CA-1, CA-3, CA-5, CA-7 et CA-9 portent CA-12 à CA-16, et CA-17 est nouveau à la
-mission. Les critères CA-18 à CA-30 sont ajoutés le 2026-10-23 pour le jalon LangGraph de
+mission. Les critères CA-18 à CA-31 sont ajoutés le 2026-10-23 pour le jalon LangGraph de
 `tools/review` (`prd.md` section 9) ; chacun cite la condition ou l'invariant dont il dérive. Les
 commandes de validation sont relatives à la racine du dépôt ; `.clones/` désigne la composition de
 flotte de la mission.
@@ -468,6 +469,7 @@ flotte de la mission.
 - CA-28 **INV-c : sortie de quarantaine à vocabulaire fermé** (ADR-0045 décision 1, `:86`). Le nœud d'agrégation ne lit du verdict que ses champs à vocabulaire fermé : `verdict` (trois valeurs), `commitSha` (40 hexadécimaux), `reviewPassId` et `role` (égalité exacte avec le travail), `mode` (deux valeurs), les comptes de `findings` par gravité ; les textes libres (`title`, `detail`, `residualRisks`, `commands`) sont des données non fiables écrites dans le fichier de verdict pour une lecture humaine, jamais lues par un nœud qui décide ni rendues à un modèle. Validation : `bun test tools/review/vectors` vert (vecteur 3 d'ADR-0045 : un verdict dont `verdict` est un texte hors des trois valeurs échoue à la validation et ne produit aucun appel ni écriture ; un verdict valide dont `detail` porte une consigne n'a aucun effet sur l'agrégation) ; neutralisation : faire lire `detail` par le nœud d'agrégation dans une copie doit rougir.
 - CA-29 **Preuve de retrait** (ADR-0058 section 4 ; ADR-0032 D5 étapes 8 et 9). Le fan-out sans le paquet reste exécutable dans le dépôt et rend les mêmes résultats : sur PLAN-MESURE (CA-24) et sur le plan historique, c'est-à-dire `tools/review/plan.orchestrator-ca44eb3.json` dont le champ `commit` est remplacé de la même façon (le commit `ca44eb33` qu'il nomme n'est plus dans l'historique de la branche servie : `git rev-list --all` n'en rend aucune occurrence au 2026-10-23), la sortie de `--dry-run` (liste des passes et chemins de sortie) est identique à l'octet entre le chemin LangGraph et le chemin sans le paquet ; sur le journal historique `docs/reviews/orchestrator/ca44eb3/events.jsonl`, `replayPassStatuses` rend le même résultat ; sur les deux verdicts enregistrés de ce dossier, `validateVerdict` rend la même liste d'erreurs (vide). Une campagne réelle rejouée des deux côtés est une mesure versée dans `docs/evidence/`, pas un test de la chaîne requise (R-5 : binaire `pi` et authentification hors manifeste). Validation : `bun run check:review-tools` vert avec un test de parité qui exécute les deux chemins sur les deux plans et le journal ; neutralisation : altérer un chemin de sortie dans le chemin LangGraph d'une copie doit rougir ; le retrait du paquet est alors une pull request qui supprime le chemin LangGraph, ses gates et ses vecteurs, sans migration d'un verdict ni d'un journal.
 - CA-30 **Fiche à jour** (ADR-0058 section 4, critère de sortie de phase, I-08 ; ADR-0058 section 3 condition 6). `project.v1.yaml` porte, pour `tools/review`, l'adoption du runtime LangGraph avec sa date, l'écart de valeur de CA-24 avec sa date, la preuve de retrait de CA-29 comme critère de sortie de phase, et le non-objectif « faire de LangGraph une autorité » reformulé pour ne plus couvrir la dépendance de l'outillage ; `last_verified_on` est postérieur à cette écriture, et la section statut du README est régénérée depuis la fiche. Validation : `grep -c -i 'langgraph' project.v1.yaml` rend au moins 3 ; `grep -n 'last_verified_on' project.v1.yaml` rend une date postérieure au 2026-10-23 ; `bun run heal:card-status` de `project-governance` ne produit aucune différence (CA-14).
+- CA-31 **Vecteur 4 d'ADR-0045 : suite d'attaques adaptatives, utilité et attaque rapportées ensemble** (ADR-0045 Conséquences, vecteur 4, `docs/adr/0045-*.md:116` de `project-governance` ; arbitrage du propriétaire du 2026-10-23, R-15). Un corpus versionné sous `tools/review/vectors/adaptive/` réunit des contenus revus hostiles qui cherchent chacun à produire un effet hors de la liste fermée de CA-26 à CA-28 (chemin de sortie, commande, adresse, consigne lue par le nœud d'agrégation, verdict hors vocabulaire) et des contenus bénins de contrôle. Le rejeu applique le corpus aux contrôles déterministes de l'orchestrateur (`buildJobs`, `validateVerdict`, nœud d'agrégation) avec, pour chaque cas, la sortie de modèle enregistrée qui tente l'effet, et imprime sur une seule ligne le taux d'utilité (cas bénins qui rendent le résultat attendu, sur le total des bénins) et le taux d'attaque réussie (cas hostiles qui produisent un effet hors liste, sur le total des hostiles), chacun avec son numérateur et son dénominateur ; une ligne qui n'imprime qu'un des deux taux, ou un dénominateur nul, est un échec. Validation : `bun test tools/review/vectors` vert avec un taux d'attaque réussie de 0 sur le total des hostiles et un taux d'utilité égal à celui du corpus bénin sans les contrôles hostiles ; neutralisation : retirer dans une copie un contrôle de CA-26, CA-27 ou CA-28 doit faire monter le taux d'attaque réussie au-dessus de 0 et rougir le test. Un rejeu avec un modèle réel (AgentDojo ou équivalent) est une mesure versée dans `docs/evidence/`, pas un test de la chaîne requise (R-5) ; les chiffres d'ADR-0045 (77 % contre 84 %, `:77`) sont ceux des auteurs de la méthode, pas une mesure de ce dépôt. Valeur au commit lu : aucun corpus, critère rouge aujourd'hui.
 
 ## 10. Critères d'abandon
 
@@ -569,7 +571,7 @@ transitive `@langchain/core` et `@langchain/langgraph-checkpoint`, aux condition
 | R-12 | L'échéance ADR-0045 (2026-12-31) arrive avant WP-3 et WP-4 | M9 à 0 vecteur à la date | l'orchestrateur de revues est suspendu (ADR-0045 décision 4), avec ou sans LangGraph ; le passage en lecture seule des passes (CA-26) ne dépend pas du paquet et peut précéder WP-2 |
 | R-13 | Le mécanisme réseau qui applique CA-22 n'existe pas sur la machine de forge (aucun plan `execution-plan-body` ne couvre `tools/review` au commit lu) | vecteur `telemetry-egress-refused` sans mécanisme nommé | l'orchestrateur sous LangGraph ne s'active pas (ADR-0058 section 3 condition 4 : « un harness qui ne produit pas ce refus n'active pas le worker ») ; le mécanisme est une décision à prendre avant WP-4 (question fermée dans la pull request du PRD) |
 | R-14 | Un avis de l'éditeur absent de la base `osv-scanner` | date de base et nombre d'entrées imprimés par CA-18 | le fichier `tools/review/advisories.v1.json` le porte ; l'ajout d'une entrée est une édition revue |
-| R-15 | Le vecteur 4 d'ADR-0045 (suite d'attaques adaptatives, taux d'utilité et taux d'attaque réussie rapportés ensemble) n'a ni critère ni paquet : M9 ne le mesure pas | `grep -n 'AgentDojo' docs/adr/0045-*.md` dans `project-governance` rend la ligne du vecteur ; aucun CA de ce document ne le cite | décision du propriétaire, ouverte : l'ajouter à WP-4 ou le déclarer hors jalon par ADR ; tant qu'elle n'est pas prise, M9 ne dit rien du vecteur 4 |
+| R-15 | Le corpus du vecteur 4 d'ADR-0045 (suite d'attaques adaptatives, taux d'utilité et taux d'attaque réussie rapportés ensemble) est borné par ce que des cas enregistrés peuvent exercer : il prouve les contrôles déterministes, pas la robustesse d'un modèle réel | `grep -n 'AgentDojo' docs/adr/0045-*.md` dans `project-governance` rend la ligne du vecteur ; `grep -n 'CA-31' docs/cahier-des-charges.md` rend le critère | décision du propriétaire du 2026-10-23 : le vecteur est ajouté à WP-4 (CA-31) ; un rejeu avec un modèle réel est une mesure versée dans `docs/evidence/`, jamais un seuil ; M9 compte quatre vecteurs |
 
 ## 13. Table de conformité à SPECIFICATION-STANDARD
 
