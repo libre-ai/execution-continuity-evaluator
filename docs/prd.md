@@ -21,8 +21,9 @@ not integrated » au sens d'I-09) ; ce document est une proposition. La fiche po
 (`project.v1.yaml`, `grep -n '^maturity:' project.v1.yaml`) : autre échelle, écart consigné
 (`cahier-des-charges.md` section 1.4).
 
-Projet : `libre-ai/execution-continuity-evaluator`, lu au commit que rend `git rev-parse HEAD` dans ce
-dépôt (le 2026-10-23 : `5d3275ec6bf5d48cf3cf4fba5ebf81945e11ab90`, même commit que la mission du
+Projet : `libre-ai/execution-continuity-evaluator`, lu au commit de base que rend `git rev-parse
+origin/BRANCHE-SERVIE` dans ce dépôt, avant l'ajout de ce document (le 2026-10-23 :
+`5d3275ec6bf5d48cf3cf4fba5ebf81945e11ab90`, daté du 2026-10-13, même commit que la mission du
 2026-10-14). La doctrine est citée au commit de `libre-ai/project-governance` que rend
 `git -C DEPOT-GOVERNANCE rev-parse HEAD` (le 2026-10-23 : `cd39dfd2861f183fe1472631f809b390bb3c8a4e`,
 qui porte ADR-0058 fusionné). Les faits d'état sont établis dans `cahier-des-charges.md` section 1 ;
@@ -79,7 +80,7 @@ et `:123`).
 
 | Pour | Valeur | Preuve disponible |
 | --- | --- | --- |
-| l'équipe qui pose les règles | refus à code stable et verdicts fermés (97 codes) ; les types à `Debug` rédigé (12) ne portent pas d'identifiant, cinq types à `Debug` dérivé en portent (CA-16) | `tests/compat/stable_codes.snapshot` ; revue vie privée `1ae6b88` de 0.2.0 (2026-09-10), sans revue sur 0.3.0 ni 0.4.0 (CA-17) |
+| l'équipe qui pose les règles | refus à code stable et verdicts fermés (97 codes) ; les types à `Debug` rédigé (12) ne portent pas d'identifiant, sept types à `Debug` dérivé en portent (CA-16) | `tests/compat/stable_codes.snapshot` ; revue vie privée `1ae6b88` de 0.2.0 (2026-09-10), sans revue sur 0.3.0 ni 0.4.0 (CA-17) |
 | l'auditeur | rejeu d'un journal `orchestrator-event.v3` en un état identique à l'octet ; recalcul des sceaux sans la crate : hypothèse `[NON VÉRIFIÉ]` | `tests/authorized_execution_replay.rs` ; 54 vecteurs de l'autorité |
 | le développeur sous règles | un refus nomme la règle, jamais la valeur rejetée | `src/control.rs:264-272` |
 | le consommateur (runtime) | aucune capacité système à auditer : liste de 6 dépendances, 25 motifs interdits (21 + 4) | `check:capabilities` |
