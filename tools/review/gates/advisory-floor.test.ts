@@ -331,8 +331,8 @@ describe("advisory-floor: the floor does not bind the lockfile to nothing", () =
       files: fixture({ manifest: DECLARES_NOTHING, lock: { left: "1.0.0" } }),
       holds: accepts("vacuous", "0 in the publisher family", "6 absent"),
       mutation: [
-        "const vacuous = declaredFamily.length === 0 && resolvedFamily.length === 0;",
-        "const vacuous = false;",
+        "declaredFamily.length === 0 && resolvedFamily.length === 0 && scopeDefects.length === 0;",
+        "false;",
       ],
     },
   ]);

@@ -15,8 +15,10 @@
 import { test } from "bun:test";
 import {
   chmodSync,
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -88,21 +90,38 @@ export function writeExecutable(name: string, content: string): string {
 
 let mutants = 0;
 
-/** The gate with `from` replaced by `to`, exactly once, in its own directory. */
-export function mutantOf(gate: string, from: string, to: string): string {
-  const source = readFileSync(gate, "utf8");
+/**
+ * The gate with `from` replaced by `to`, exactly once, in its own directory. The directory also
+ * holds a copy of the sibling modules the gates import (publisher-scope.ts), so that the mutant
+ * resolves its imports; `module` names the file the mutation lands in when it is one of them
+ * (default: the gate itself), so that the decisive text of a shared module can be neutralised too.
+ */
+export function mutantOf(
+  gate: string,
+  from: string,
+  to: string,
+  module: string = basename(gate),
+): string {
+  const siblings = readdirSync(HERE).filter(
+    (name) => name.endsWith(".ts") && !name.endsWith(".test.ts") && name !== "harness.ts",
+  );
+  const target = join(dirname(gate), module);
+  if (!siblings.includes(basename(target)) || dirname(target) !== dirname(gate)) {
+    throw new Error(`a mutation lands in a gate or a module of ${HERE}, not in: ${module}`);
+  }
+  const source = readFileSync(target, "utf8");
   const first = source.indexOf(from);
   if (from === to || first === -1 || source.indexOf(from, first + 1) !== -1) {
     throw new Error(`a no-op mutation needs exactly one occurrence of: ${from}`);
   }
   const directory = join(scratch, `mutant-${mutants++}`);
   mkdirSync(directory);
-  const path = join(directory, basename(gate));
+  for (const name of siblings) copyFileSync(join(HERE, name), join(directory, name));
   writeFileSync(
-    path,
+    join(directory, module),
     source.replace(from, () => to),
   );
-  return path;
+  return join(directory, basename(gate));
 }
 
 export interface Case {
@@ -116,8 +135,11 @@ export interface Case {
   readonly args?: readonly string[] | ((repo: string) => string[]);
   /** The verdict the case pins. It must hold on the gate and fail on the mutant. */
   readonly holds: (run: Run) => boolean;
-  /** The no-op: the decisive text of the gate, and what replaces it. */
-  readonly mutation: readonly [from: string, to: string];
+  /**
+   * The no-op: the decisive text of the gate, and what replaces it. A third element names the
+   * module of the gates directory that holds the text, when it is not the gate itself.
+   */
+  readonly mutation: readonly [from: string, to: string, module?: string];
 }
 
 export const describeRun = (run: Run) =>
@@ -133,7 +155,7 @@ export function prove(gate: string, cases: readonly Case[]): void {
     const original = spawnClean([process.execPath, gate, ...args]);
     if (!c.holds(original)) throw new Error(`does not hold on the gate:\n${describeRun(original)}`);
 
-    const mutant = mutantOf(gate, c.mutation[0], c.mutation[1]);
+    const mutant = mutantOf(gate, ...c.mutation);
     const mutated = spawnClean([process.execPath, mutant, ...args]);
     // A mutant that crashes proves the mutation broke the program, not that the case checks anything.
     if (/\b(?:TypeError|ReferenceError|SyntaxError)\b|\n\s+at /.test(mutated.err)) {

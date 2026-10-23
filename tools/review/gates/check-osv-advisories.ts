@@ -4,7 +4,8 @@
 // days. The second instrument, the versioned floor, is check-advisory-floor.ts.
 //
 // No template exists for this instrument. Self-contained on purpose: one file, `node:` and `Bun`
-// only, so that a mutant of it can be run alone (see advisory-floor.test.ts).
+// only, plus publisher-scope.ts (itself `node:` only) for the sweep the two advisory gates share,
+// so that a mutant of it can be run alone with that module (see advisory-floor.test.ts).
 //
 // Usage: bun check-osv-advisories.ts [--root=<dir>] [--lock=<path>] [--manifest=<path>]
 //                                    [--db-dir=<path>] [--osv-scanner=<binary>]
@@ -34,9 +35,25 @@
 // every repository that has nothing to scan. The gate says so on every run ("not applicable") and
 // applies by itself as soon as the manifest declares a package of the publisher family, or the
 // lockfile resolves one (a transitive arrival is caught too).
+//
+// Where the graph may live. docs/prd.md section 9 places it in the Bun workspace of tools/review,
+// the manifest and the lockfile above, and they are the only files this instrument scans. A package
+// of the family declared in any other tracked package.json, or resolved in any other tracked
+// lockfile, is a graph that would never be scanned: the gate fails naming the file and the package
+// instead of printing "not applicable" (publisher-scope.ts: the sweep, shared with
+// check-advisory-floor.ts). The counters print the manifests and lockfiles examined and sum to the
+// tracked files.
 
 import { lstatSync, readFileSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+
+import {
+  FAMILY,
+  SCOPE_NOT_SEEN,
+  scopeFailures,
+  scopeVolume,
+  sweepOutsideGraph,
+} from "./publisher-scope";
 
 const DEFAULT_LOCK = "tools/review/bun.lock";
 const DEFAULT_MANIFEST = "tools/review/package.json";
@@ -47,8 +64,6 @@ const DEFAULT_DB_DIR = ".cache/osv-advisory-db";
 const DATABASE_FILE = "osv-scalibr/npm/all.zip";
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const SCAN_TIMEOUT_MS = 300_000;
-
-const FAMILY = /^(?:@langchain\/|langchain$)/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -269,12 +284,18 @@ if (import.meta.main) {
     }
   }
 
+  const graphPaths = [args.manifest, args.lock];
+  const scope = sweepOutsideGraph(args.root, tracked, graphPaths);
+  failures.push(...scopeFailures(scope, graphPaths));
+
   const resolvedFamily = lock.filter((entry) => FAMILY.test(entry.name));
   const applies = declares || resolvedFamily.length > 0;
   console.log(
     `OSV advisories: ${args.lock}: ${lock.length} entr(ies) listed, ${resolvedFamily.length} in the ` +
       `publisher family; ${args.manifest} ${declares ? "declares" : "declares no"} package of the family`,
   );
+  console.log(`OSV advisories: ${scopeVolume(scope)}`);
+  console.log(`OSV advisories: ${SCOPE_NOT_SEEN}`);
 
   if (failures.length === 0 && !applies) {
     console.log(

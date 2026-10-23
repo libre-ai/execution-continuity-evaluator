@@ -24,8 +24,11 @@
 // same way.
 //
 // What it does NOT see, and prints on every run: a name built at run time (a concatenation, a
-// template string, a computed key), an untracked file. The second mechanism of the condition —
-// the egress refusal by the network policy (CA-22) — is the only control for those.
+// template string, a computed key), an untracked file, and a name in another letter case. The
+// match is case-sensitive on purpose: the SDK reads the exact upper-case form, so a lower-case
+// `langsmith_tracing=true` is not a switch it honours — but it is not refused either: the refusal
+// is not widened to it. The second mechanism of the condition — the egress refusal by the network
+// policy (CA-22) — is the only control for those.
 
 import { lstatSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -274,7 +277,8 @@ if (import.meta.main) {
       : result.exempt.map((item) => `${item.path} (${item.names} name(s) inside)`).join(", ");
   console.log(`LangSmith env: exempt from ${args.exemptions}: ${exemptLine}`);
   console.log(
-    "LangSmith env: not seen — a name built at run time, an untracked file; " +
+    "LangSmith env: not seen — a name built at run time, an untracked file, a name in another " +
+      "letter case (the match is case-sensitive: the SDK reads the exact form); " +
       "the egress refusal (CA-22) is the control for those",
   );
   failures.push(...verdict(result));

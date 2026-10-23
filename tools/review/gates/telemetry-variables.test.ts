@@ -160,6 +160,18 @@ describe("telemetry-variables: what it must not refuse, and what it counts", () 
       mutation: ["(?<![A-Za-z0-9_])", ""],
     },
     {
+      name: "a name in another letter case is not refused: the match is case-sensitive, the SDK reads the exact form",
+      files: repo({ ".env": `${PREFIX.toLowerCase()}tracing=true\n` }),
+      holds: accepts("0 refused name(s)"),
+      mutation: ['  "g",', '  "gi",'],
+    },
+    {
+      name: "the run declares that a name in another letter case is not seen",
+      files: repo({ "a.ts": "export {};\n" }),
+      holds: accepts("not seen", "a name in another letter case", "the match is case-sensitive"),
+      mutation: ["letter case (the match is case-sensitive: the SDK reads the exact form); ", ""],
+    },
+    {
       name: "an alias followed by more name characters is a different variable",
       files: repo({ ".env": `${ALIAS("TRACING")}_EXTRA=1\n` }),
       holds: accepts("0 refused name(s)"),

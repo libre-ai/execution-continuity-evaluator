@@ -3,8 +3,9 @@
 // resolved lockfile. The first instrument, `osv-scanner` offline, is check-osv-advisories.ts.
 //
 // Adapted from the fleet template `distribution/templates/langgraph-gates/check-langgraph-advisory-floor.ts`
-// of libre-ai/project-governance. Self-contained on purpose: one file, `node:` and `Bun` only, so
-// that a mutant of it can be run alone (see advisory-floor.test.ts).
+// of libre-ai/project-governance. Self-contained on purpose: one file, `node:` and `Bun` only,
+// plus publisher-scope.ts (itself `node:` only) for the sweep the two advisory gates share, so
+// that a mutant of it can be run alone with that module (see advisory-floor.test.ts).
 //
 // Usage: bun check-advisory-floor.ts [--root=<dir>] [--floor=<path>] [--lock=<path>] [--manifest=<path>]
 //
@@ -39,6 +40,14 @@
 // family: a declared package that the lock does not resolve is a failure, so the lock cannot
 // silently drift away from the manifest.
 //
+// Where the graph may live. ADR-0058 section 3, condition 1 binds EVERY resolved version of the
+// graph, and docs/prd.md section 9 places it in the Bun workspace of tools/review: the manifest and
+// the lockfile above. A package of the family declared in any other tracked package.json, or
+// resolved in any other tracked lockfile, is a graph this comparison would never see — it is a
+// failure naming the file and the package, never "vacuous" (publisher-scope.ts: the sweep, shared
+// with check-osv-advisories.ts). The counters print the manifests and lockfiles examined and sum to
+// the tracked files.
+//
 // Fail closed on what cannot be read: a data file that does not parse or breaks its schema, a
 // lockfile that is not a `bun.lock`, does not parse, or lists no package, a manifest that does not
 // parse, an entry with no name@version, and a floor package resolved at something that is not a
@@ -47,13 +56,17 @@
 import { lstatSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
+import {
+  FAMILY,
+  SCOPE_NOT_SEEN,
+  scopeFailures,
+  scopeVolume,
+  sweepOutsideGraph,
+} from "./publisher-scope";
+
 const DEFAULT_FLOOR = "tools/review/advisories.v1.json";
 const DEFAULT_LOCK = "tools/review/bun.lock";
 const DEFAULT_MANIFEST = "tools/review/package.json";
-
-// The packages the publisher ships for this runtime. A declared or resolved one makes the floor
-// non-vacuous.
-const FAMILY = /^(?:@langchain\/|langchain$)/;
 
 const PACKAGE_NAME = /^(?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*$/;
 const SEMVER_TRIPLE = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
@@ -407,11 +420,19 @@ if (import.meta.main) {
   const evaluation = evaluate(floor.entries, floor.denied, lock, args.lock);
   failures.push(...evaluation.defects);
 
+  const graphPaths = [args.manifest, args.lock];
+  const scope = sweepOutsideGraph(args.root, tracked, graphPaths);
+  const scopeDefects = scopeFailures(scope, graphPaths);
+  failures.push(...scopeDefects);
+
   const declaredFamily = declared.filter((name) => FAMILY.test(name));
   const resolvedFamily = lock.filter((entry) => FAMILY.test(entry.name));
   const covered = new Set(floor.entries.map((entry) => entry.package));
   const coveredFamily = resolvedFamily.filter((entry) => covered.has(entry.name)).length;
-  const vacuous = declaredFamily.length === 0 && resolvedFamily.length === 0;
+  // Vacuous only if the graph workspace is empty AND nothing of the family hides elsewhere: the
+  // sweep's failure replaces the word, it does not accompany it.
+  const vacuous =
+    declaredFamily.length === 0 && resolvedFamily.length === 0 && scopeDefects.length === 0;
   if (declaredFamily.length > 0 && evaluation.resolvedRows === 0 && floor.entries.length > 0) {
     failures.push(
       `${args.manifest} declares ${declaredFamily.join(", ")} but ${args.lock} resolves no floor package: ` +
@@ -431,6 +452,8 @@ if (import.meta.main) {
       `${evaluation.entriesCompared} entry-by-lock comparison(s); ${evaluation.resolvedRows} entr(ies) ` +
       `resolved, ${evaluation.absentRows} absent from the lockfile, ${evaluation.defects.length} below the floor, denied or not comparable`,
   );
+  console.log(`LangGraph advisory floor: ${scopeVolume(scope)}`);
+  console.log(`LangGraph advisory floor: ${SCOPE_NOT_SEEN}`);
   if (vacuous) {
     console.log(
       `LangGraph advisory floor: vacuous — ${args.manifest} declares no package of the publisher ` +
