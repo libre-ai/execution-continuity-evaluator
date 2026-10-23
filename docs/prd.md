@@ -6,9 +6,11 @@ Maturité : prototype
 
 Provenance : ce document reprend la spécification de mission
 `specs/execution-continuity-evaluator/prd.md` de l'analyse du 2026-10-14. Changements : la ligne
-qui déclare le niveau de ce texte (ci-dessus) ; le scénario S6 (section 4), la métrique M8, l'hypothèse
-H7, la ligne LangGraph de la section 7 et la section 9 (paquets de travail), qui portent la décision
-du propriétaire du 2026-10-23 (ADR-0058, premier consommateur LangGraph JS de la flotte) ; et des
+qui déclare le niveau de ce texte (ci-dessus) ; le scénario S6 (section 4), les métriques M8 et M9,
+l'hypothèse H7, le quatrième défaut de la section 2 (ADR-0045), la ligne LangGraph de la section 7, deux
+phrases de la section 8 (déplacement de `tools/review`, validation du jalon par M8 et M9) et la
+section 9 (paquets de travail), qui portent la décision du propriétaire du 2026-10-23 (ADR-0058,
+premier consommateur LangGraph JS de la flotte, sous ADR-0045) ; et des
 réécritures de forme exigées par la norme des paquets de travail de `libre-ai/project-governance`
 (`docs/specifications/WORK-PACKAGES.md`) : chaque paramètre écrit entre chevrons y est écrit en
 capitales (`ORG/DEPOT`, `DEPOT-CONSOMMATEUR`, `REV`, `SUJET/SHA`), le jalon B prime s'écrit `B'`.
@@ -80,7 +82,7 @@ et `:123`).
 
 | Pour | Valeur | Preuve disponible |
 | --- | --- | --- |
-| l'équipe qui pose les règles | refus à code stable et verdicts fermés (97 codes) ; les types à `Debug` rédigé (12) ne portent pas d'identifiant, sept types à `Debug` dérivé en portent (CA-16) | `tests/compat/stable_codes.snapshot` ; revue vie privée `1ae6b88` de 0.2.0 (2026-09-10), sans revue sur 0.3.0 ni 0.4.0 (CA-17) |
+| l'équipe qui pose les règles | refus à code stable et verdicts fermés (97 codes) ; les types à `Debug` rédigé (12) ne portent pas d'identifiant, sept types à `Debug` dérivé en portent, cinq directement et deux par référence (CA-16) | `tests/compat/stable_codes.snapshot` ; revue vie privée `1ae6b88` de 0.2.0 (2026-09-10), sans revue sur 0.3.0 ni 0.4.0 (CA-17) |
 | l'auditeur | rejeu d'un journal `orchestrator-event.v3` en un état identique à l'octet ; recalcul des sceaux sans la crate : hypothèse `[NON VÉRIFIÉ]` | `tests/authorized_execution_replay.rs` ; 54 vecteurs de l'autorité |
 | le développeur sous règles | un refus nomme la règle, jamais la valeur rejetée | `src/control.rs:264-272` |
 | le consommateur (runtime) | aucune capacité système à auditer : liste de 6 dépendances, 25 motifs interdits (21 + 4) | `check:capabilities` |
@@ -146,8 +148,8 @@ programmes sont écrites en deux temps (« puis »), la norme refusant la barre 
 | M5 — majeures de contrats lues **par le code** en commun avec ai-work-supervision et execution-sandbox | relevé section 11.1 du cahier, fichiers `*.rs`, `*.ts`, `*.toml` | 0 famille lue en même majeure par deux composants ; vrai par absence de lecteur côté `ai-work-supervision` (son domaine Rust n'importe aucun contrat), pas par écart de versions | fusion de spec / contrat d'interface commun (Q1) | ≥ 1 famille lue en même majeure par deux composants |
 | M6 — second producteur de `review-verdict.v0.1` | `grep -rln 'review-verdict' .clones/*/ --include='*.ts'`, puis retrait des lignes de ce dépôt, puis `wc -l` | 0 (rejoué le 2026-10-15) | déplacer `tools/review` vers `project-governance` (AB-4) | ≥ 1 producteur hors dépôt |
 | M7 — rejeu du banc à chaque montée de version | `ls docs/reviews/*/*/benchmark.txt`, puis `wc -l`, contre les entrées de `BREAKS.md` (CA-10) | 1 fichier (0.2.0) pour 3 entrées depuis 0.2.0 inclus ; 0 pour 2 postérieures | exiger la mesure dans la définition de fin d'une montée | 1 pour 1 |
-| M8 — valeur propre du runtime LangGraph sur l'orchestrateur de revues (ADR-0058 section 3, condition 6) : taille du graphe de dépendances de `tools/review`, temps de démarrage de `fanout.ts --dry-run`, mémoire maximale, des deux côtés (avec et sans le paquet), verbatim | `bun pm ls --all` dans `tools/review`, puis `wc -l` ; `/usr/bin/time -l bun tools/review/fanout.ts tools/review/plan.example.json --dry-run` ; les deux côtés mesurés sur le même commit, le chemin sans le paquet restant exécutable (CA-29) | non mesurée (le paquet n'est pas encore dans le manifeste ; référence sans le paquet, mesurée le 2026-10-23 sur un clone sans `node_modules` : `bun pm ls --all --cwd tools/review`, puis `wc -l`, rend 42 lignes, l'en-tête compris ; à rejouer avant toute comparaison) | écriture de l'écart, avec sa date, dans `project.v1.yaml` (CA-24, CA-30) ; un écart défavorable n'interdit pas l'adoption, décidée par ADR-0058 ; sa lecture est une question du propriétaire, pas un seuil | aucun seuil : la décision déclenchée est l'écriture de l'écart |
-| M9 — conformité ADR-0045 de l'orchestrateur de revues : les quatre vecteurs rouges de `docs/adr/0045-*.md` (Conséquences) verts, chacun prouvé rouge sans le contrôle | `bun test tools/review/vectors` (CA-26 à CA-28) | 0 vecteur (aucun n'existe au 2026-10-23 ; `ls tools/review/vectors` rend « No such file ») | avant le 2026-12-31 : activation de l'orchestrateur sous LangGraph avec des passes sans outil à effet ; à la date, suspension de l'orchestrateur tant que les vecteurs ne passent pas (ADR-0045 décision 4) | 4 vecteurs verts et 4 neutralisations rouges |
+| M8 — valeur propre du runtime LangGraph sur l'orchestrateur de revues (ADR-0058 section 3, condition 6) : taille du graphe de dépendances de `tools/review`, temps de démarrage de `fanout.ts --dry-run`, mémoire maximale, des deux côtés (avec et sans le paquet), verbatim | `bun pm ls --all` dans `tools/review`, puis `wc -l` ; `/usr/bin/time -l bun tools/review/fanout.ts PLAN-MESURE --dry-run` (PLAN-MESURE est défini en CA-24 : le plan d'exemple porte un commit nul que `fanout.ts` refuse avant le `--dry-run`) ; les deux côtés mesurés sur le même commit, le chemin sans le paquet restant exécutable (CA-29) | non mesurée (le paquet n'est pas encore dans le manifeste ; référence sans le paquet, mesurée le 2026-10-23 sur un clone sans `node_modules` : `bun pm ls --all --cwd tools/review`, puis `wc -l`, rend 42 lignes, l'en-tête compris ; à rejouer avant toute comparaison) | écriture de l'écart, avec sa date, dans `project.v1.yaml` (CA-24, CA-30) ; un écart défavorable n'interdit pas l'adoption, décidée par ADR-0058 ; sa lecture est une question du propriétaire, pas un seuil | aucun seuil : la décision déclenchée est l'écriture de l'écart |
+| M9 — conformité ADR-0045 de l'orchestrateur de revues : les vecteurs rouges 1 à 3 de `docs/adr/0045-*.md` (Conséquences), ceux des trois invariants, verts, chacun prouvé rouge sans le contrôle ; le vecteur 4 (suite d'attaques adaptatives) n'a ni critère ni paquet dans ce jalon (R-15 du cahier) | `bun test tools/review/vectors` (CA-26 à CA-28) | 0 vecteur (aucun n'existe au 2026-10-23 ; `ls tools/review/vectors` rend « No such file ») | avant le 2026-12-31 : activation de l'orchestrateur sous LangGraph avec des passes sans outil à effet ; à la date, suspension de l'orchestrateur tant que les vecteurs ne passent pas (ADR-0045 décision 4) | 3 vecteurs verts et 3 neutralisations rouges |
 
 ## 6. Hypothèses à valider et expérience
 
@@ -171,7 +173,7 @@ lecture de leur documentation dans la mission). La ligne LangGraph est relue le 
 
 | Commun | Recouvrement | Écart avec ce composant | Licence / maintenance |
 | --- | --- | --- | --- |
-| LangGraph JS (`langchain-ai/langgraphjs`, paquet `@langchain/langgraph`) | graphes d'étapes, reprise | catalogue de 10 patterns étudié à `c6910a9e`, statut `research-non-normative`, méthode d'étude inchangée (ADR-0032 D1) ; depuis ADR-0058 (2026-10-23) : runtime admis du graphe interne d'un worker TypeScript et de l'outillage de forge, jamais une autorité, jamais dans un contrat, jamais une persistance (D2, D3, D4 maintenus) ; premier consommateur : `tools/review` (S6) ; aucune dépendance LangGraph dans la crate Rust (ADR-0037 D6) | MIT ; `@langchain/langgraph` 1.5.2 et `@langchain/core` 1.3.0 publiés au 2026-10-23 ; avis de l'éditeur corrigés à partir de 1.4.21, 1.4.12 (checkpoint 1.1.4) et core 1.1.8 (CA-18) |
+| LangGraph JS (`langchain-ai/langgraphjs`, paquet `@langchain/langgraph`) | graphes d'étapes, reprise | catalogue de 10 patterns étudié à `c6910a9e`, statut `research-non-normative`, méthode d'étude inchangée (ADR-0032 D1) ; depuis ADR-0058 (2026-10-23) : runtime admis du graphe interne d'un worker TypeScript et de l'outillage de forge, jamais une autorité, jamais dans un contrat, jamais une persistance (D2, D3, D4 maintenus) ; premier consommateur : `tools/review` (S6) ; aucune dépendance LangGraph dans la crate Rust (ADR-0037 D6) | MIT ; `@langchain/langgraph` 1.5.2 et `@langchain/core` 1.3.0 publiés au 2026-10-23 ; avis de l'éditeur corrigés à partir de 1.4.21, 1.4.12 (checkpoint 1.1.4), core 1.1.8 et sdk 1.12.3 (CA-18) |
 | Temporal (`temporalio/temporal`), Restate (`restatedev/restate`) | exécution durable, rejeu idempotent | ces moteurs exécutent ; la crate décide sans exécuter et ne porte aucune persistance (section 4.2 du cahier) ; la barrière « effet d'état inconnu » et la liaison de décision humaine n'y sont pas des primitives `[NON VÉRIFIÉ]` | Temporal : MIT, push 2026-10-15 ; Restate : `NOASSERTION` (détection nulle, licence `[NON VÉRIFIÉ]`), push 2026-10-14 ; aucun archivé |
 | OpenTelemetry GenAI semantic conventions (`open-telemetry/semantic-conventions`) | observation d'appels d'outils par spans | ADR-0046 / I-33 : aucun argument, résultat ni horodatage par appel ne quitte le harness, empreintes HMAC par run ; OTel nomme les attributs d'outils, la crate rend un verdict | Apache-2.0, push 2026-10-14 ; aucune mention d'OTel dans le dépôt (`grep -rniE 'opentelemetry' .` rend 0 hors ce document, fiche `chevauchements_communs[2]`) |
 | `deepseek-ai/deepseek-harness` | benchmark de parité déclaré sur la surface de plugins | ne porte pas le confinement ni la décision | MIT, push 2026-10-14, non archivé |
@@ -243,8 +245,15 @@ critères CA-1 à CA-17 du cahier, qui concernent la crate Rust, ses vecteurs et
 pas découpés ici : leurs paquets relèvent d'un jalon ultérieur et d'une autre décision (section 8).
 Le découpage suit l'ordre de réalisation que la doctrine impose : les gates d'entrée précèdent le
 paquet (ADR-0058 Conséquences : « deux gates nouveaux à écrire dans le dépôt consommateur ») ;
-INV-a à INV-c et l'egress précèdent toute activation (ADR-0045 décision 4) ; la mesure de valeur
-et la preuve de retrait ferment le jalon (ADR-0058 section 3 condition 6 et section 4).
+INV-a à INV-c précèdent toute activation (ADR-0045 décision 4), comme le vecteur egress
+(ADR-0058 section 3 condition 4) ; la mesure de valeur et la preuve de retrait ferment le jalon
+(ADR-0058 section 3 condition 6 et section 4).
+
+Ce tableau est une proposition tant que le niveau déclaré en tête de ce document est « proposition » : la
+norme n'accepte un trailer `Work-package` que si le PRD à ce commit est au moins à `décision`
+(`ecosystem/work-package-policy.v1.yaml`, `approvedFrom`). Aucun paquet ne peut donc être ouvert
+avant la pull request dédiée qui promeut ce document à `décision` en citant l'arbitrage du
+propriétaire du 2026-10-23.
 
 Chaque périmètre nomme des chemins sous `tools/review/` ; `tools/review/gates/`,
 `tools/review/vectors/` et `tools/review/advisories.v1.json` n'existent pas encore au commit lu
@@ -266,5 +275,5 @@ de l'orchestrateur ou le déplacement du dépôt (AB-4), n'est pas dans ce jalon
 | `WP-2` | `CA-19`, `CA-20`, `CA-25` | `tools/review/*.ts`, `tools/review/package.json`, `tools/review/bun.lock`, `tools/review/bunfig.toml`, `package.json` | `bun run check:review-tools` | `two-way` |
 | `WP-3` | `CA-26`, `CA-27`, `CA-28` | `tools/review/*.ts`, `tools/review/vectors/**` | `bun test tools/review/vectors` | `two-way` |
 | `WP-4` | `CA-22` | `tools/review/vectors/**`, `docs/evidence/**` | `bun test tools/review/vectors` | `two-way` |
-| `WP-5` | `CA-24` | `docs/evidence/**`, `project.v1.yaml`, `README.md` | `bun tools/review/fanout.ts tools/review/plan.example.json --dry-run` | `two-way` |
+| `WP-5` | `CA-24` | `docs/evidence/**`, `project.v1.yaml`, `README.md` | `grep -n 'langgraph' project.v1.yaml` | `two-way` |
 | `WP-6` | `CA-29`, `CA-30` | `tools/review/*.ts`, `project.v1.yaml`, `README.md` | `bun run check:review-tools` | `two-way` |
