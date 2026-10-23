@@ -1,0 +1,116 @@
+{
+  "schema": "advisories.v1",
+  "readOn": "2026-10-23",
+  "entries": [
+    {
+      "package": "@langchain/community",
+      "minimum": "1.1.14",
+      "advisory": "GHSA-gf3v-fwqg-4vh7",
+      "source": "langchain-ai/langchainjs"
+    },
+    {
+      "package": "@langchain/community",
+      "minimum": "1.1.18",
+      "advisory": "GHSA-mphv-75cg-56wg",
+      "source": "langchain-ai/langchainjs"
+    },
+    {
+      "package": "@langchain/core",
+      "minimum": "1.1.8",
+      "advisory": "GHSA-r399-636x-v7f6",
+      "source": "langchain-ai/langchainjs"
+    },
+    {
+      "package": "@langchain/langgraph",
+      "minimum": "1.4.12",
+      "advisory": "GHSA-j87f-x5h5-gr75",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph",
+      "minimum": "1.4.21",
+      "advisory": "GHSA-432w-3h3v-2pv4",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph",
+      "minimum": "1.4.21",
+      "advisory": "GHSA-wp87-994x-j95x",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph-checkpoint",
+      "minimum": "1.1.4",
+      "advisory": "GHSA-j87f-x5h5-gr75",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph-checkpoint-mongodb",
+      "minimum": "1.3.1",
+      "advisory": "GHSA-98xf-r82g-9mhx",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph-checkpoint-mongodb",
+      "minimum": "1.4.2",
+      "advisory": "GHSA-hxqq-jqhx-58fp",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph-checkpoint-postgres",
+      "minimum": "1.0.6",
+      "advisory": "GHSA-8p8h-xj5r-m5wf",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph-checkpoint-redis",
+      "minimum": "1.0.2",
+      "advisory": "GHSA-5mx2-w598-339m",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph-checkpoint-redis",
+      "minimum": "1.0.12",
+      "advisory": "GHSA-8p8h-xj5r-m5wf",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph-sdk",
+      "minimum": "1.12.2",
+      "advisory": "GHSA-r3xm-q2gp-xjjg",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/langgraph-sdk",
+      "minimum": "1.12.3",
+      "advisory": "GHSA-432w-3h3v-2pv4",
+      "source": "langchain-ai/langgraphjs"
+    },
+    {
+      "package": "@langchain/mongodb",
+      "minimum": "1.3.1",
+      "advisory": "GHSA-m6rx-h84q-8r95",
+      "source": "langchain-ai/langchainjs"
+    },
+    {
+      "package": "@langchain/redis",
+      "minimum": "1.1.1",
+      "advisory": "GHSA-5x6v-p487-7qh2",
+      "source": "langchain-ai/langchainjs"
+    },
+    {
+      "package": "langchain",
+      "minimum": "1.2.3",
+      "advisory": "GHSA-r399-636x-v7f6",
+      "source": "langchain-ai/langchainjs"
+    }
+  ],
+  "denied": [
+    {
+      "package": "@langchain/langgraph-sdk",
+      "version": "2.0.0",
+      "advisory": "GHSA-432w-3h3v-2pv4",
+      "source": "langchain-ai/langgraphjs"
+    }
+  ]
+}

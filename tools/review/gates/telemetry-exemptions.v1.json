@@ -1,0 +1,13 @@
+{
+  "schema": "telemetry-exemptions.v1",
+  "exempt": [
+    {
+      "path": "docs/cahier-des-charges.md",
+      "reason": "CA-21 exempts the occurrences of the requirements specification: it states the refused names in order to specify the gate."
+    },
+    {
+      "path": "docs/prd.md",
+      "reason": "CA-21 exempts the occurrences of the PRD, the work-package source of the milestone."
+    }
+  ]
+}
