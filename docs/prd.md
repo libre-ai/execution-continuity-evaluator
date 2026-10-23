@@ -1,6 +1,6 @@
 # execution-continuity-evaluator — PRD
 
-Maturité du document : proposition
+Maturité du document : décision
 
 Maturité : prototype
 
@@ -19,7 +19,7 @@ capitales (`ORG/DEPOT`, `DEPOT-CONSOMMATEUR`, `REV`, `SUJET/SHA`), le jalon B pr
 dans ce dépôt.
 
 Portée du niveau : « prototype » qualifie le projet observé (0 consommateur dans la flotte, « built,
-not integrated » au sens d'I-09) ; ce document est une proposition. La fiche porte `maturity: usable`
+not integrated » au sens d'I-09) ; ce document est une décision du propriétaire, promue le 2026-10-23 par une pull request dédiée. La fiche porte `maturity: usable`
 (`project.v1.yaml`, `grep -n '^maturity:' project.v1.yaml`) : autre échelle, écart consigné
 (`cahier-des-charges.md` section 1.4).
 
@@ -249,11 +249,10 @@ INV-a à INV-c précèdent toute activation (ADR-0045 décision 4), comme le vec
 (ADR-0058 section 3 condition 4) ; la mesure de valeur et la preuve de retrait ferment le jalon
 (ADR-0058 section 3 condition 6 et section 4).
 
-Ce tableau est une proposition tant que le niveau déclaré en tête de ce document est « proposition » : la
-norme n'accepte un trailer `Work-package` que si le PRD à ce commit est au moins à `décision`
-(`ecosystem/work-package-policy.v1.yaml`, `approvedFrom`). Aucun paquet ne peut donc être ouvert
-avant la pull request dédiée qui promeut ce document à `décision` en citant l'arbitrage du
-propriétaire du 2026-10-23.
+Ce tableau est approuvé : la norme n'accepte un trailer `Work-package` que si le PRD à ce commit est
+au moins à `décision` (`ecosystem/work-package-policy.v1.yaml`, `approvedFrom`), et la pull request
+dédiée qui a promu ce document l'a fait en citant l'arbitrage du propriétaire du 2026-10-23. Un
+paquet s'ouvre par une issue qui nomme ce document et sa ligne.
 
 Chaque périmètre nomme des chemins sous `tools/review/` ; `tools/review/gates/`,
 `tools/review/vectors/` et `tools/review/advisories.v1.json` n'existent pas encore au commit lu
