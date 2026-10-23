@@ -8,6 +8,7 @@ upstream:
 https://raw.githubusercontent.com/libre-ai/project-governance/HEAD/AGENTS.md
 Contract vectors come from
 https://github.com/libre-ai/schemas-and-contracts at a pinned revision.
+Product objectives and work packages have one source, `docs/prd.md`.
 
 ## Boundaries
 
