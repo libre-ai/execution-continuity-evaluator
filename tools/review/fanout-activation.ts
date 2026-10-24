@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, resolve, sep } from "node:path";
 
 // Conditions under which the LangGraph runtime may run REAL review passes.
 //
@@ -18,7 +18,14 @@ import { join } from "node:path";
 // The graph driver applies the table itself (fanout-graph.ts), so a script that
 // imports the driver meets the same refusal as the command line.
 
-const REPO_ROOT = join(import.meta.dir, "..", "..");
+const REPO_ROOT = resolve(import.meta.dir, "..", "..");
+
+/** True when `path` is repository-relative, stays under the root, and exists. */
+function isProofInRepository(path: string): boolean {
+  if (isAbsolute(path)) return false;
+  const resolved = resolve(REPO_ROOT, path);
+  return resolved.startsWith(`${REPO_ROOT}${sep}`) && existsSync(resolved);
+}
 
 export interface ActivationCondition {
   readonly id: string;
@@ -88,7 +95,7 @@ export function unmetConditions(
       !(
         condition.satisfied &&
         condition.evidence !== null &&
-        existsSync(join(REPO_ROOT, condition.evidence))
+        isProofInRepository(condition.evidence)
       ),
   );
 }

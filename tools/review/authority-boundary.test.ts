@@ -86,12 +86,24 @@ describe("the default path does not load the package", () => {
     expect(grepCount(text, /await import\("\.\/fanout-graph"\)/)).toBe(1);
   });
 
-  test("no orchestrator source imports the test support, which holds a table marked met", async () => {
-    const sources = orchestratorSources();
+  test("no source outside the tests imports the test support, which holds a table marked met", async () => {
+    // Every non-test TypeScript file of tools/review, whatever its name, not
+    // only the fanout*.ts sources: a future entry point is covered too.
+    const sources = readdirSync(REVIEW_DIR, { recursive: true, encoding: "utf8" }).filter(
+      (path) =>
+        path.endsWith(".ts") &&
+        !path.endsWith(".test.ts") &&
+        !path.startsWith("node_modules") &&
+        path !== "fanout-fixtures.ts",
+    );
     expect(sources).toContain("fanout-graph.ts");
-    for (const name of sources) {
-      const text = await read(join(REVIEW_DIR, name));
-      expect(grepCount(text, /fanout-fixtures|ALL_CONDITIONS_MET_FOR_TESTS/)).toBe(0);
+    expect(sources).toContain("fanout.ts");
+    for (const path of sources) {
+      const text = await read(join(REVIEW_DIR, path));
+      expect([path, grepCount(text, /fanout-fixtures|ALL_CONDITIONS_MET_FOR_TESTS/)]).toEqual([
+        path,
+        0,
+      ]);
     }
   });
 

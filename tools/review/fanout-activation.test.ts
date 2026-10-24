@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join, relative } from "node:path";
 import {
   type ActivationCondition,
   activationRefusal,
@@ -47,9 +48,21 @@ describe("activation conditions", () => {
   });
 
   test("when every condition is met and proven there is nothing to refuse", () => {
-    const met = [condition({ satisfied: true, evidence: "tools/review/fanout-activation.test.ts" })];
+    const met = [
+      condition({ satisfied: true, evidence: "tools/review/fanout-activation.test.ts" }),
+    ];
     expect(unmetConditions(met)).toEqual([]);
     expect(activationRefusal(met)).toBeNull();
+  });
+
+  test("a proof named outside the repository stays unmet, even when the file exists", () => {
+    const absolute = condition({ satisfied: true, evidence: "/etc/hosts" });
+    const escaping = condition({
+      satisfied: true,
+      evidence: relative(join(import.meta.dir, "..", ".."), "/etc/hosts"),
+    });
+    expect(escaping.evidence?.startsWith("..")).toBe(true);
+    expect(unmetConditions([absolute, escaping])).toEqual([absolute, escaping]);
   });
 
   test("a condition whose named proof is not in the repository stays unmet", () => {

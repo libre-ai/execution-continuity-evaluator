@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import type { ReviewJob } from "./fanout-core";
 import { parsePlan } from "./fanout-core";
+import { ALL_CONDITIONS_MET_FOR_TESTS } from "./fanout-fixtures";
 import {
   buildCampaignGraph,
   routeAfterLot,
   routeAfterLots,
   runCampaignGraph,
 } from "./fanout-graph";
-import { ALL_CONDITIONS_MET_FOR_TESTS } from "./fanout-fixtures";
 import {
   type CampaignInput,
   type CampaignIo,
@@ -326,6 +326,15 @@ describe("activation is enforced by the driver itself", () => {
     const h = harness(["a", "b"], 2);
     await expect(runCampaignGraph(h.input)).rejects.toThrow("activation condition(s) unmet");
     expect([h.opened(), h.starts.length, h.disposed(), h.verified()]).toEqual([0, 0, 0, 0]);
+  });
+
+  test("a table other than the canonical one is refused, before anything opens", async () => {
+    const h = harness(["a"], 1);
+    const partial = ALL_CONDITIONS_MET_FOR_TESTS.slice(1);
+    await expect(runCampaignGraph(h.input, [])).rejects.toThrow("activation table");
+    await expect(runCampaignGraph(h.input, partial)).rejects.toThrow("activation table");
+    expect(() => buildCampaignGraph(h.input, [])).toThrow("activation table");
+    expect([h.opened(), h.starts.length]).toEqual([0, 0]);
   });
 
   test("building the graph for real passes is refused too", () => {

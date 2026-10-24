@@ -111,12 +111,27 @@ function resultsInPlanOrder(run: readonly ReviewJob[], session: Session): JobRes
   });
 }
 
-/** Throws, before anything opens, when real passes are asked for and a condition is unmet. */
+const CANONICAL_CONDITION_IDS = LANGGRAPH_ACTIVATION_CONDITIONS.map((condition) => condition.id);
+
+/**
+ * Throws, before anything opens, when real passes are asked for and a condition
+ * is unmet. The table handed in must list exactly the canonical conditions, in
+ * order: an empty or partial table would otherwise have nothing left to refuse.
+ */
 function refuseUnactivatedPasses(
   input: CampaignInput,
   conditions: readonly ActivationCondition[],
 ): void {
   if (input.dryRun) return;
+  const ids = conditions.map((condition) => condition.id);
+  if (
+    ids.length !== CANONICAL_CONDITION_IDS.length ||
+    ids.some((id, index) => id !== CANONICAL_CONDITION_IDS[index])
+  ) {
+    throw new Error(
+      `the activation table must list exactly the conditions of fanout-activation.ts (${CANONICAL_CONDITION_IDS.join(", ")}); got: ${ids.join(", ") || "none"}`,
+    );
+  }
   const refusal = activationRefusal(conditions);
   if (refusal !== null) throw new Error(refusal);
 }
@@ -189,7 +204,10 @@ function fanOut(state: Pick<CampaignStateValue, "batches" | "cursor">): Send[] |
  * The LangGraph driver. Same contract as `runCampaignDirect`, plus the
  * activation table: real passes are refused until every condition holds.
  * `conditions` is for the tests that pin real behaviour; production callers
- * leave it to the table in fanout-activation.ts.
+ * leave it to the table in fanout-activation.ts. A table that is not the
+ * canonical list is refused; a full table marked met by hand is a code change,
+ * visible in review, and no source outside the tests may import the one the
+ * tests use (authority-boundary.test.ts).
  */
 export async function runCampaignGraph(
   input: CampaignInput,
