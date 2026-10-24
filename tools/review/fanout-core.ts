@@ -34,6 +34,11 @@ export interface DedupeResult {
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const EVIDENCE_PATH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+// A role names the scratch worktree (`<base>/<role>`) and the verdict file
+// (`<outputDir>/<role>.verdict.json`): one path segment, no separator, no
+// traversal, so neither effect can land outside the directory the plan names
+// (INV-b, CA-27: a policy on every effect argument).
+const ROLE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const DEFAULT_CONCURRENCY = 5;
 
 // Verdict envelope schema. Kept tool-side on purpose: it is promoted to
@@ -131,6 +136,13 @@ export function parsePlan(raw: unknown): ReviewPlan {
     : [];
   if (roles.length === 0) errors.push("roles: non-empty string array required");
   if (new Set(roles).size !== roles.length) errors.push("roles: duplicates are not allowed");
+  for (const role of roles) {
+    if (!ROLE_PATTERN.test(role) || role.includes("..")) {
+      errors.push(
+        `roles: unsafe role (allowed: [A-Za-z0-9._-], one path segment, no ".."): ${JSON.stringify(role)}`,
+      );
+    }
+  }
 
   const mode = plan.mode ?? "specialized-role";
   if (mode !== "candidate-integration" && mode !== "specialized-role") {
@@ -276,6 +288,54 @@ export function buildPrompt(job: ReviewJob, evidenceDigest: string): string {
     'verdict ("approve" | "approve-with-minor-reservations" | "reject").',
     "One verdict exactly; a generic pass cannot satisfy a specialized role.",
   ].join("\n");
+}
+
+// ── Tool profile of a review pass (INV-a, CA-26) ─────────────────────────────
+//
+// A pass reads untrusted content (the commit, the evidence), so the model that
+// reads it must hold no tool whose access is write, execute or network
+// (ADR-0045 decision 1). This is the one place that says which tools it holds;
+// every pass of every driver is spawned with `buildPassArgv`.
+//
+// Measured on pi 1.4.0 (dist/cli/args.js, dist/core/agent-session.js), which is
+// why the allowlist alone is not enough:
+//   * `--tools` keeps MCP tools unless an entry starts with `mcp__`: `--no-mcp`
+//     connects no server and registers no MCP tool.
+//   * an extension may register a tool under a built-in name and replace it
+//     (`read` routed over ssh is a shipped example), and the allowlist matches
+//     names: `--no-extensions` loads no extension, built-in ones included.
+//   * the worktree is the reviewed commit, so its `.pi/` and `.agents/skills`
+//     are untrusted: `--no-approve` ignores project-local files for this run.
+//   * skills add instructions, not tools; `--no-skills` keeps the operator's
+//     personal skills out of a reviewer whose verdict must not depend on them.
+// The parser ignores an unknown long option, so a misspelt flag here would be
+// silently inert: the vector pins each spelling (vectors/inv-a-*.test.ts).
+
+/** Built-in tools of pi with no write, execute or network access. */
+export const REVIEW_PASS_TOOLS = ["read", "grep", "find", "ls"] as const;
+
+const TOOL_ALLOWLIST = ["--tools", REVIEW_PASS_TOOLS.join(",")] as const;
+const TOOL_SOURCES_CLOSED = ["--no-mcp", "--no-extensions", "--no-skills", "--no-approve"] as const;
+
+export const REVIEW_PASS_PROFILE: readonly string[] = [...TOOL_ALLOWLIST, ...TOOL_SOURCES_CLOSED];
+
+/**
+ * The command line of one review pass. Every argument comes from the plan or
+ * from the orchestrator's own prompt; nothing a pass wrote reaches it (INV-b).
+ */
+export function buildPassArgv(plan: ReviewPlan, piBinary: string, prompt: string): string[] {
+  return [
+    piBinary,
+    "--print",
+    ...REVIEW_PASS_PROFILE,
+    "--provider",
+    plan.provider,
+    "--model",
+    plan.model,
+    "--thinking",
+    plan.thinking,
+    prompt,
+  ];
 }
 
 export function extractVerdict(output: string): unknown {

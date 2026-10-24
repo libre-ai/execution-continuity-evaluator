@@ -27,15 +27,23 @@ const condition = (overrides: Partial<ActivationCondition>): ActivationCondition
 });
 
 describe("activation conditions", () => {
-  test("today every condition of ADR-0045 and ADR-0058 is unmet, each owned by a work package", () => {
+  test("the two conditions of WP-4 are still unmet, so the refusal still stands", () => {
     expect(unmetConditions().map((c) => `${c.id}:${c.workPackage}`)).toEqual([
-      "inv-a:WP-3",
-      "inv-b:WP-3",
-      "inv-c:WP-3",
       "telemetry-egress-refused:WP-4",
       "adaptive-attacks:WP-4",
     ]);
     expect(LANGGRAPH_ACTIVATION_CONDITIONS).toHaveLength(5);
+    expect(activationRefusal()).not.toBeNull();
+  });
+
+  test("INV-a to INV-c are met, each by its vector in tools/review/vectors", () => {
+    const met = LANGGRAPH_ACTIVATION_CONDITIONS.filter((c) => !unmetConditions().includes(c));
+    expect(met.map((c) => [c.id, c.workPackage, c.evidence])).toEqual([
+      ["inv-a", "WP-3", "tools/review/vectors/inv-a-read-only-passes.test.ts"],
+      ["inv-b", "WP-3", "tools/review/vectors/inv-b-effect-arguments.test.ts"],
+      ["inv-c", "WP-3", "tools/review/vectors/inv-c-closed-vocabulary.test.ts"],
+    ]);
+    for (const c of met) expect(isProofInRepository(c.evidence ?? "")).toBe(true);
   });
 
   test("a condition that claims to be met without naming its proof stays unmet", () => {
@@ -89,9 +97,10 @@ describe("activation conditions", () => {
 
   test("the refusal names each unmet condition with its source and its work package", () => {
     const message = activationRefusal() ?? "";
-    expect(message).toContain("5 of 5 activation condition(s) unmet");
-    expect(message).toContain("ADR-0045 decision 1 (INV-a), CA-26; delivered by WP-3");
+    expect(message).toContain("2 of 5 activation condition(s) unmet");
+    expect(message).not.toContain("INV-a");
     expect(message).toContain("ADR-0058 section 3 condition 4, CA-22; delivered by WP-4");
+    expect(message).toContain("ADR-0045 consequences (vector 4), CA-31; delivered by WP-4");
     expect(message).toContain("--dry-run is available on this runtime");
   });
 });

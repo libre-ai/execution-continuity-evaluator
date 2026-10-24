@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { EnvelopeKey } from "@libre-ai/envelope";
 import {
   buildJobs,
+  buildPassArgv,
   buildPrompt,
   dedupeJobs,
   extractVerdict,
@@ -123,20 +124,12 @@ async function runJob(
     try {
       const prompt = buildPrompt(job, evidenceDigest);
       const agentStartedAt = new Date().toISOString();
-      const proc = Bun.spawn(
-        [
-          piBinary,
-          "--print",
-          "--provider",
-          plan.provider,
-          "--model",
-          plan.model,
-          "--thinking",
-          plan.thinking,
-          prompt,
-        ],
-        { cwd: worktree, stdout: "pipe", stderr: "pipe" },
-      );
+      // Read-only tool profile (INV-a): the reviewer reads untrusted content.
+      const proc = Bun.spawn(buildPassArgv(plan, piBinary, prompt), {
+        cwd: worktree,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
       const [stdout, stderr, exitCode] = await Promise.all([
         new Response(proc.stdout).text(),
         new Response(proc.stderr).text(),

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { LANGGRAPH_ACTIVATION_CONDITIONS } from "./fanout-activation";
+import { LANGGRAPH_ACTIVATION_CONDITIONS, unmetConditions } from "./fanout-activation";
 import {
   disposeFixture,
   type Fixture,
@@ -86,11 +86,15 @@ describe("--runtime=langgraph without --dry-run", () => {
 
     expect(result.exitCode).toBe(2);
     expect(result.stdout).toBe("");
+    const unmet = unmetConditions();
+    expect(unmet.length).toBeGreaterThan(0);
     for (const condition of LANGGRAPH_ACTIVATION_CONDITIONS) {
-      expect(result.stderr).toContain(`- ${condition.id}:`);
-      expect(result.stderr).toContain(condition.workPackage);
+      const named = result.stderr.includes(`- ${condition.id}:`);
+      expect([condition.id, named]).toEqual([condition.id, unmet.includes(condition)]);
     }
-    expect(result.stderr).toContain("5 of 5 activation condition(s) unmet");
+    expect(result.stderr).toContain(
+      `${unmet.length} of ${LANGGRAPH_ACTIVATION_CONDITIONS.length} activation condition(s) unmet`,
+    );
     expect(await piInvocations(f)).toEqual([]);
     expect(existsSync(f.outputDir)).toBe(false);
     expect(await worktreeCount(f)).toBe(1);
