@@ -1,8 +1,18 @@
-import { readdirSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { chmod, copyFile, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { type ActivationCondition, LANGGRAPH_ACTIVATION_CONDITIONS } from "./fanout-activation";
+import { parsePlan, type ReviewEvent } from "./fanout-core";
+import { runCampaignGraph } from "./fanout-graph";
+import {
+  type CampaignInput,
+  type CampaignIo,
+  type CampaignOutcome,
+  openCampaign,
+  reportJournal,
+  runCampaignDirect,
+} from "./fanout-run";
 
 // Test support for the fan-out CLI: a throwaway git repository, a stand-in for
 // the `pi` binary, and a way to run `fanout.ts` against both. Nothing here is
@@ -82,18 +92,32 @@ async function git(dir: string, args: string[]): Promise<string> {
 // answers with a verdict that carries them back. The failure shape comes from
 // FAKE_PI_MODE, or else from the file "mode" next to the stand-in (for a caller
 // that cannot set the environment of the process); FAKE_PI_LOG, or else
-// "../pi.log", receives one JSON line per invocation.
+// "../pi.log", receives one JSON line per invocation, prompt included. Mode
+// "reply" prints the file "reply" next to the stand-in, its {{reviewPassId}},
+// {{role}}, {{mode}} and {{commitSha}} replaced by the pinned literals: a
+// hostile reviewer scripted byte for byte (tools/review/vectors).
 const FAKE_PI_SOURCE = `#!/usr/bin/env bun
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 const here = dirname(process.argv[1]);
 const prompt = process.argv.at(-1) ?? "";
 const log = process.env.FAKE_PI_LOG ?? join(here, "..", "pi.log");
-appendFileSync(log, JSON.stringify({ cwd: process.cwd(), argv: process.argv.slice(2, -1) }) + "\\n");
+appendFileSync(
+  log,
+  JSON.stringify({ cwd: process.cwd(), argv: process.argv.slice(2, -1), prompt }) + "\\n",
+);
 const literal = (name) => new RegExp(name + ' \\\\(exactly "([^"]+)"\\\\)').exec(prompt)?.[1];
 const modeFile = join(here, "mode");
 const mode =
   process.env.FAKE_PI_MODE ?? (existsSync(modeFile) ? readFileSync(modeFile, "utf8").trim() : "approve");
+if (mode === "reply") {
+  let reply = readFileSync(join(here, "reply"), "utf8");
+  for (const name of ["reviewPassId", "role", "mode", "commitSha"]) {
+    reply = reply.replaceAll("{{" + name + "}}", literal(name) ?? "");
+  }
+  console.log(reply);
+  process.exit(0);
+}
 if (mode === "exit1") {
   console.error("fake pi: provider refused");
   process.exit(1);
@@ -236,8 +260,21 @@ export async function setFakePiMode(fixture: Fixture, mode: string): Promise<voi
   await writeFile(join(fixture.binDir, "mode"), mode);
 }
 
+/** Script the stand-in's whole reply, for callers that run in this process. */
+export async function setFakePiReply(fixture: Fixture, reply: string): Promise<void> {
+  await writeFile(join(fixture.binDir, "reply"), reply);
+  await setFakePiMode(fixture, "reply");
+}
+
+export interface PiInvocation {
+  readonly cwd: string;
+  /** Every argument but the last, which is the prompt. */
+  readonly argv: string[];
+  readonly prompt: string;
+}
+
 /** `pi` invocations the fixture recorded, one parsed record per run. */
-export async function piInvocations(fixture: Fixture): Promise<{ cwd: string; argv: string[] }[]> {
+export async function piInvocations(fixture: Fixture): Promise<PiInvocation[]> {
   const log = Bun.file(fixture.piLog);
   if (!(await log.exists())) return [];
   return (await log.text())
@@ -261,6 +298,76 @@ export function normalizeOutput(text: string, fixture: Fixture): string {
 }
 
 export const fixtureGit = git;
+
+export type DriverName = "direct" | "graph";
+export const DRIVERS: DriverName[] = ["direct", "graph"];
+
+/** What a campaign with real effects left behind, seen from outside the orchestrator. */
+export interface RealCampaign {
+  readonly outcome: CampaignOutcome;
+  readonly outputDir: string;
+  /** Names of the files in the output directory after the run, sorted. */
+  readonly outputFiles: string[];
+  readonly journalText: string;
+  readonly journal: ReviewEvent[];
+  /** The `pi` invocations of this campaign only, not of earlier ones on the fixture. */
+  readonly invocations: PiInvocation[];
+  readonly lines: string[];
+}
+
+/**
+ * Run the fixture's plan through one driver with every real effect: git
+ * worktrees, the stand-in `pi` named by path, the journal and the verdict
+ * files. The graph driver gets the table marked met, as in
+ * fanout-graph-real.test.ts: what is pinned is its behaviour, not its activation.
+ */
+export async function runRealCampaign(
+  fixture: Fixture,
+  driver: DriverName,
+  outputName: string,
+): Promise<RealCampaign> {
+  const outputDir = join(fixture.dir, "out", outputName);
+  const plan = parsePlan({ ...(await Bun.file(fixture.planPath).json()), outputDir });
+  const lines: string[] = [];
+  const io: CampaignIo = {
+    log: (line) => lines.push(`log: ${line}`),
+    error: (line) => lines.push(`err: ${line}`),
+  };
+  const before = (await piInvocations(fixture)).length;
+  let counter = 0;
+  const input: CampaignInput = {
+    plan,
+    force: false,
+    dryRun: false,
+    makeId: () => {
+      counter += 1;
+      return `rp-${outputName}-${counter}`;
+    },
+    hasRecordedVerdict: (job) => existsSync(job.outputPath),
+    open: (campaignPlan) =>
+      openCampaign(campaignPlan, { repoDir: fixture.dir, piBinary: fixture.piBinary }),
+    verify: (journalPath, results) => reportJournal(journalPath, results, io),
+    io,
+  };
+  const outcome =
+    driver === "direct"
+      ? await runCampaignDirect(input)
+      : await runCampaignGraph(input, ALL_CONDITIONS_MET_FOR_TESTS);
+  const journalPath = join(outputDir, "events.jsonl");
+  const journalText = existsSync(journalPath) ? await Bun.file(journalPath).text() : "";
+  return {
+    outcome,
+    outputDir,
+    outputFiles: existsSync(outputDir) ? readdirSync(outputDir).sort() : [],
+    journalText,
+    journal: journalText
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as ReviewEvent),
+    invocations: (await piInvocations(fixture)).slice(before),
+    lines,
+  };
+}
 
 export async function disposeFixture(fixture: Fixture): Promise<void> {
   await rm(fixture.dir, { recursive: true, force: true });
