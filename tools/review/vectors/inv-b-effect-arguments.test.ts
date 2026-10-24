@@ -1,15 +1,16 @@
 import { afterAll, afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { readdirSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildJobs, buildPassArgv, parsePlan } from "../fanout-core";
+import { buildJobs, parsePlan } from "../fanout-core";
 import {
   DRIVERS,
   type DriverName,
   disposeFixture,
   type Fixture,
   makeFixture,
+  piInvocations,
   type RealCampaign,
   runRealCampaign,
   setFakePiReply,
@@ -73,15 +74,34 @@ function replyWith(fields: Record<string, unknown>): string {
   return `review done\n\n\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``;
 }
 
-/** The command line each pass must have had: the plan's, whatever the reviewer answered. */
+// Options of the pass command line that take a value (pi 1.4.0, dist/cli/args.js).
+const VALUE_OPTIONS = new Set(["--tools", "--provider", "--model", "--thinking"]);
+
+/**
+ * The command line each pass must have had, whatever the reviewer answered.
+ * Written from CA-26 and CA-27, not from `buildPassArgv`: `--print` first;
+ * `--provider`, `--model` and `--thinking` each once, each followed by the
+ * plan's value; no other positional argument; the orchestrator's prompt last.
+ */
 async function expectArgvFromPlan(campaign: RealCampaign, fixture: Fixture): Promise<void> {
-  const plan = parsePlan({
-    ...(await Bun.file(fixture.planPath).json()),
-    outputDir: campaign.outputDir,
-  });
-  const expected = buildPassArgv(plan, fixture.piBinary, "").slice(1, -1);
+  const plan = (await Bun.file(fixture.planPath).json()) as Record<string, string>;
   expect(campaign.invocations).toHaveLength(ROLES.length);
-  for (const invocation of campaign.invocations) expect(invocation.argv).toEqual(expected);
+  for (const invocation of campaign.invocations) {
+    const argv = invocation.argv;
+    expect(argv[0]).toBe("--print");
+    for (const name of ["provider", "model", "thinking"]) {
+      const flag = `--${name}`;
+      expect([flag, argv.filter((arg) => arg === flag).length]).toEqual([flag, 1]);
+      expect([flag, argv[argv.indexOf(flag) + 1]]).toEqual([flag, plan[name]]);
+    }
+    argv.forEach((arg, index) => {
+      const isValue = VALUE_OPTIONS.has(argv[index - 1] ?? "");
+      expect([arg, arg.startsWith("-") || isValue]).toEqual([arg, true]);
+    });
+    // The stand-in records the last argument apart: it is the prompt the
+    // orchestrator built, never a value of the plan or of the reviewer.
+    expect(invocation.prompt.startsWith("You are performing a review-only pass")).toBe(true);
+  }
 }
 
 function expectNoTrappedEffect(campaign: RealCampaign, a: Arena): void {
@@ -157,7 +177,7 @@ describe("vector 1: a trapped verdict obtains no effect", () => {
       .filter((event) => event.type === "verdict_recorded")
       .map((event) => [event.role, event.detail?.outputPath]);
     expect(recorded.sort()).toEqual(
-      ROLES.map((role) => [role, `${campaign.outputDir}/${role}.verdict.json`]),
+      ROLES.map((role) => [role, `${campaign.planOutputDir}/${role}.verdict.json`]),
     );
     expectNoTrappedEffect(campaign, a);
     await expectArgvFromPlan(campaign, a.fixture);
@@ -216,6 +236,99 @@ describe("vector 1: effect arguments derive from the plan, under a policy", () =
   ])("a role with %s is refused before any effect", (_name, role) => {
     started += 1;
     expect(() => parsePlan({ ...base, roles: ["security", role] })).toThrow(/roles: unsafe role/);
+    held += 1;
+  });
+
+  // A hostile plan: each value becomes the value of a `pi` option. Refused by
+  // the policy, not left to how pi 1.4.0 happens to parse it.
+  test.each([
+    ["provider", "an option of its own", "--tools=bash"],
+    ["provider", "a leading dash", "-x"],
+    ["model", "a blank and an option", "m --no-approve"],
+    ["model", "a tab", "m\tx"],
+    ["model", "a C1 control (NEL)", "m\u0085x"],
+    ["thinking", "a newline and an option", "high\n--tools"],
+    ["thinking", "an escape sequence", "\u001b]0;pwned\u0007"],
+  ])("%s with %s is refused", (field, _name, value) => {
+    started += 1;
+    expect(() => parsePlan({ ...base, roles: ["security"], [field]: value })).toThrow(
+      new RegExp(`${field}: unsafe option value`),
+    );
+    held += 1;
+  });
+
+  test.each([
+    ["an absolute path", "/tmp/verdicts"],
+    ["a parent traversal", "../verdicts"],
+    ["a traversal in the middle", "docs/../../verdicts"],
+    ["a home path", "~/verdicts"],
+    ["a blank", "docs/reviews x"],
+  ])("an outputDir with %s is refused", (_name, outputDir) => {
+    started += 1;
+    expect(() => parsePlan({ ...base, roles: ["security"], outputDir })).toThrow(
+      /outputDir: unsafe path/,
+    );
+    held += 1;
+  });
+
+  test.each([
+    ["plan.example.json"],
+    ["plan.orchestrator-ca44eb3.json"],
+  ])("the tracked plan %s still passes every policy", async (name) => {
+    started += 1;
+    const plan = await Bun.file(join(import.meta.dir, "..", name)).json();
+    expect(() => parsePlan(plan)).not.toThrow();
+    held += 1;
+  });
+});
+
+describe("vector 1: the orchestrator never writes through a link", () => {
+  test.each(
+    DRIVERS,
+  )("%s driver: an output directory that is a link is refused before any pass", async (driver: DriverName) => {
+    started += 1;
+    const a = await arena();
+    await mkdir(join(a.fixture.dir, "out"), { recursive: true });
+    await symlink(a.trap, join(a.fixture.dir, "out", driver));
+    await expect(runRealCampaign(a.fixture, driver, driver)).rejects.toThrow(
+      "refusing to write through a symbolic link",
+    );
+    expect(readdirSync(a.trap)).toEqual([]);
+    expect(await piInvocations(a.fixture)).toEqual([]);
+    held += 1;
+  });
+
+  test.each(
+    DRIVERS,
+  )("%s driver: a journal that is a link is refused before any pass", async (driver: DriverName) => {
+    started += 1;
+    const a = await arena();
+    await mkdir(join(a.fixture.dir, "out", driver), { recursive: true });
+    await writeFile(a.trapFile, "");
+    await symlink(a.trapFile, join(a.fixture.dir, "out", driver, "events.jsonl"));
+    await expect(runRealCampaign(a.fixture, driver, driver)).rejects.toThrow(
+      "refusing to write through a symbolic link",
+    );
+    expect(await Bun.file(a.trapFile).text()).toBe("");
+    expect(await piInvocations(a.fixture)).toEqual([]);
+    held += 1;
+  });
+
+  test.each(
+    DRIVERS,
+  )("%s driver: a verdict file planted as a dangling link is not written through", async (driver: DriverName) => {
+    started += 1;
+    const a = await arena();
+    await setFakePiReply(a.fixture, replyWith({}));
+    await mkdir(join(a.fixture.dir, "out", driver), { recursive: true });
+    // Dangling, so `hasRecordedVerdict` does not see a recorded verdict and the pass runs.
+    await symlink(a.trapFile, join(a.fixture.dir, "out", driver, "alpha.verdict.json"));
+    const campaign = await runRealCampaign(a.fixture, driver, driver);
+
+    expect(readdirSync(a.trap)).toEqual([]);
+    const alpha = campaign.outcome.results.find((result) => result.job.role === "alpha");
+    expect(alpha?.ok).toBe(false);
+    expect(typesOf(campaign, "alpha")).not.toContain("verdict_recorded");
     held += 1;
   });
 });

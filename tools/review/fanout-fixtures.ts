@@ -190,6 +190,9 @@ export async function makeFixture(roles: readonly string[] = ["alpha", "beta"]):
   await writeFile(pi, FAKE_PI_SOURCE);
   await chmod(pi, 0o755);
 
+  // The plan names its output directory relative to the repository, as
+  // parsePlan requires; `Fixture.outputDir` is the same place, absolute, for
+  // the tests that read it.
   const outputDir = join(dir, "out", "verdicts");
   const planPath = join(dir, "plan.json");
   await writeFile(
@@ -204,7 +207,7 @@ export async function makeFixture(roles: readonly string[] = ["alpha", "beta"]):
       provider: "fake-provider",
       model: "fake-model",
       thinking: "off",
-      outputDir,
+      outputDir: "out/verdicts",
     }),
   );
   return {
@@ -305,6 +308,9 @@ export const DRIVERS: DriverName[] = ["direct", "graph"];
 /** What a campaign with real effects left behind, seen from outside the orchestrator. */
 export interface RealCampaign {
   readonly outcome: CampaignOutcome;
+  /** The output directory as the plan names it, relative to the fixture repository. */
+  readonly planOutputDir: string;
+  /** The same directory, absolute. */
   readonly outputDir: string;
   /** Names of the files in the output directory after the run, sorted. */
   readonly outputFiles: string[];
@@ -326,8 +332,12 @@ export async function runRealCampaign(
   driver: DriverName,
   outputName: string,
 ): Promise<RealCampaign> {
-  const outputDir = join(fixture.dir, "out", outputName);
-  const plan = parsePlan({ ...(await Bun.file(fixture.planPath).json()), outputDir });
+  const planOutputDir = `out/${outputName}`;
+  const outputDir = join(fixture.dir, planOutputDir);
+  const plan = parsePlan({
+    ...(await Bun.file(fixture.planPath).json()),
+    outputDir: planOutputDir,
+  });
   const lines: string[] = [];
   const io: CampaignIo = {
     log: (line) => lines.push(`log: ${line}`),
@@ -343,7 +353,7 @@ export async function runRealCampaign(
       counter += 1;
       return `rp-${outputName}-${counter}`;
     },
-    hasRecordedVerdict: (job) => existsSync(job.outputPath),
+    hasRecordedVerdict: (job) => existsSync(join(fixture.dir, job.outputPath)),
     open: (campaignPlan) =>
       openCampaign(campaignPlan, { repoDir: fixture.dir, piBinary: fixture.piBinary }),
     verify: (journalPath, results) => reportJournal(journalPath, results, io),
@@ -357,6 +367,7 @@ export async function runRealCampaign(
   const journalText = existsSync(journalPath) ? await Bun.file(journalPath).text() : "";
   return {
     outcome,
+    planOutputDir,
     outputDir,
     outputFiles: existsSync(outputDir) ? readdirSync(outputDir).sort() : [],
     journalText,

@@ -39,6 +39,11 @@ const EVIDENCE_PATH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 // traversal, so neither effect can land outside the directory the plan names
 // (INV-b, CA-27: a policy on every effect argument).
 const ROLE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// provider, model and thinking each become the value of a `pi` option. A value
+// that starts with "-" or carries a blank or a control character could be read
+// as another option, or split, by a parser other than pi 1.4.0's: refuse it
+// here rather than rely on that parser (INV-b, CA-27).
+const OPTION_VALUE_PATTERN = /^[^-\s\p{Cc}][^\s\p{Cc}]*$/u;
 const DEFAULT_CONCURRENCY = 5;
 
 // Verdict envelope schema. Kept tool-side on purpose: it is promoted to
@@ -179,9 +184,29 @@ export function parsePlan(raw: unknown): ReviewPlan {
     typeof plan.thinking === "string" && plan.thinking.trim().length > 0
       ? plan.thinking.trim()
       : "xhigh";
+  for (const [name, value] of [
+    ["provider", provider],
+    ["model", model],
+    ["thinking", thinking],
+  ] as const) {
+    if (value.length > 0 && !OPTION_VALUE_PATTERN.test(value)) {
+      errors.push(
+        `${name}: unsafe option value (no leading "-", no blank, no control character): ${JSON.stringify(value)}`,
+      );
+    }
+  }
 
+  // The verdicts and the journal are written under outputDir, resolved against
+  // the repository: same policy as an evidence path, so no effect lands
+  // outside the repository the plan describes (INV-b, CA-27).
   const outputDir = typeof plan.outputDir === "string" ? plan.outputDir.trim() : "";
-  if (outputDir.length === 0) errors.push("outputDir: non-empty string required");
+  if (outputDir.length === 0) {
+    errors.push("outputDir: non-empty string required");
+  } else if (!EVIDENCE_PATH_PATTERN.test(outputDir) || outputDir.includes("..")) {
+    errors.push(
+      `outputDir: unsafe path (allowed: [A-Za-z0-9._/-], repo-relative, no ".."): ${JSON.stringify(outputDir)}`,
+    );
+  }
 
   if (errors.length > 0) {
     throw new Error(`invalid review plan:\n- ${errors.join("\n- ")}`);

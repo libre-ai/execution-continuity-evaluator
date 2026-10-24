@@ -75,8 +75,8 @@ describe("fanout.ts (default path)", () => {
     expect(normalizeOutput(result.stdout, f)).toBe(
       [
         `2 pass(es) on ${f.commit.slice(0, 7)} — concurrency 2, fake-provider/fake-model:off`,
-        "- alpha → <fixture>/out/verdicts/alpha.verdict.json",
-        "- beta → <fixture>/out/verdicts/beta.verdict.json",
+        "- alpha → out/verdicts/alpha.verdict.json",
+        "- beta → out/verdicts/beta.verdict.json",
         "",
       ].join("\n"),
     );

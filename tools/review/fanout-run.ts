@@ -1,5 +1,6 @@
 import { createHash, getRandomValues, randomUUID } from "node:crypto";
-import { appendFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { constants } from "node:fs";
+import { appendFile, lstat, mkdir, mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EnvelopeKey } from "@libre-ai/envelope";
@@ -63,6 +64,34 @@ export async function git(args: string[], cwd = "."): Promise<string> {
   return stdout;
 }
 
+// The orchestrator writes the verdicts and the journal, never through a
+// symbolic link: a link planted in the output directory (or one of its parents
+// inside the repository) would redirect an audit record anywhere the process
+// can write (INV-b, CA-27). Measured on Bun 1.4: O_NOFOLLOW makes an append to
+// a link fail with ELOOP, and O_CREAT|O_EXCL refuses an existing target,
+// dangling link included, with EEXIST.
+const APPEND_NO_LINK =
+  constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW;
+const CREATE_NO_LINK =
+  constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
+
+/**
+ * Throws when a component of `relativePath`, resolved under `root`, exists as a
+ * symbolic link. Components that do not exist yet are not links. `root` itself
+ * is not judged: it is the repository the caller chose.
+ */
+export async function refuseLinks(root: string, relativePath: string): Promise<void> {
+  let current = root;
+  for (const part of relativePath.split("/").filter((segment) => segment.length > 0)) {
+    current = join(current, part);
+    const stat = await lstat(current).catch(() => null);
+    if (stat === null) return;
+    if (stat.isSymbolicLink()) {
+      throw new Error(`refusing to write through a symbolic link: ${relativePath} (at ${part})`);
+    }
+  }
+}
+
 /**
  * Append-only JSONL journal, written while passes run rather than at the end.
  *
@@ -82,7 +111,7 @@ export function journalWriter(path: string, job: ReviewJob): Emit {
       ...(span === undefined ? {} : { endedAt: now }),
       ...(detail === undefined ? {} : { detail }),
     };
-    await appendFile(path, `${JSON.stringify(event)}\n`);
+    await appendFile(path, `${JSON.stringify(event)}\n`, { flag: APPEND_NO_LINK });
   };
 }
 
@@ -167,7 +196,16 @@ async function runJob(
                 durationMs: Math.round(performance.now() - start),
               },
             };
-            await Bun.write(job.outputPath, `${JSON.stringify(record, null, 2)}\n`);
+            // The verdict file is new by construction (a recorded one is
+            // skipped, a forced re-run over one is refused): O_EXCL makes that
+            // an invariant of the write, and refuses a link planted in its place.
+            await refuseLinks(repoDir, job.outputPath);
+            const file = await open(join(repoDir, job.outputPath), CREATE_NO_LINK);
+            try {
+              await file.writeFile(`${JSON.stringify(record, null, 2)}\n`);
+            } finally {
+              await file.close();
+            }
             await emit("verdict_recorded", { outputPath: job.outputPath });
           }
         }
@@ -193,7 +231,10 @@ export interface PassExecutor {
 }
 
 export interface OpenOptions {
-  /** Repository the commit lives in; the current directory unless a test says otherwise. */
+  /**
+   * Repository the commit lives in, and the root the plan's outputDir is
+   * resolved against; the current directory unless a test says otherwise.
+   */
   readonly repoDir?: string;
   /** The reviewer binary; `pi`, found on PATH, unless a test names a stand-in. */
   readonly piBinary?: string;
@@ -209,7 +250,12 @@ export async function openCampaign(
 ): Promise<PassExecutor> {
   const repoDir = options.repoDir ?? ".";
   const piBinary = options.piBinary ?? "pi";
-  await mkdir(plan.outputDir, { recursive: true });
+  // outputDir is repository-relative (parsePlan): every write lands under
+  // repoDir, and none goes through a link, before or after the directory exists.
+  const journalRelative = `${plan.outputDir}/events.jsonl`;
+  await refuseLinks(repoDir, journalRelative);
+  await mkdir(join(repoDir, plan.outputDir), { recursive: true });
+  await refuseLinks(repoDir, journalRelative);
   // Ephemeral per-run HMAC key for evidence integrity (K3 intra-run boundary).
   // Held in memory only, never logged or persisted. Identifies this orchestration run
   // and binds all evidence to it; an altered or stripped envelope is offline-verifiable.
@@ -219,7 +265,7 @@ export async function openCampaign(
   };
   const evidenceDigest = await buildEvidenceDigest(plan, envelopeKey, repoDir);
   const worktreeBase = await mkdtemp(join(tmpdir(), "review-fanout-"));
-  const journalPath = join(plan.outputDir, "events.jsonl");
+  const journalPath = join(repoDir, journalRelative);
   return {
     journalPath,
     runPass: (job) =>

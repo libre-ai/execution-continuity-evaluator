@@ -47,8 +47,13 @@ async function drive(
   outputName: string,
   piMode: string,
 ): Promise<Run> {
-  const outputDir = join(fixture.dir, "out", outputName);
-  const plan = parsePlan({ ...(await Bun.file(fixture.planPath).json()), outputDir });
+  // The plan names the directory relative to the repository; reads use it absolute.
+  const planOutputDir = `out/${outputName}`;
+  const outputDir = join(fixture.dir, planOutputDir);
+  const plan = parsePlan({
+    ...(await Bun.file(fixture.planPath).json()),
+    outputDir: planOutputDir,
+  });
   const lines: string[] = [];
   const io: CampaignIo = {
     log: (line) => lines.push(`log: ${line}`),
@@ -67,7 +72,7 @@ async function drive(
       counter += 1;
       return `rp-fixed-${counter}`;
     },
-    hasRecordedVerdict: (job) => existsSync(job.outputPath),
+    hasRecordedVerdict: (job) => existsSync(join(fixture.dir, job.outputPath)),
     open: (campaignPlan) =>
       openCampaign(campaignPlan, { repoDir: fixture.dir, piBinary: fixture.piBinary }),
     verify: (journalPath, results) => reportJournal(journalPath, results, io),
@@ -75,7 +80,9 @@ async function drive(
   });
   return {
     outcome,
-    lines: lines.map((line) => line.replaceAll(outputDir, "<out>")),
+    lines: lines.map((line) =>
+      line.replaceAll(outputDir, "<out>").replaceAll(planOutputDir, "<out>"),
+    ),
     files: await verdictsOf(outputDir),
     journal: await journalOf(outputDir),
   };
