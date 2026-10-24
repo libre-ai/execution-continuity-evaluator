@@ -331,8 +331,11 @@ describe("activation is enforced by the driver itself", () => {
   test("a table other than the canonical one is refused, before anything opens", async () => {
     const h = harness(["a"], 1);
     const partial = ALL_CONDITIONS_MET_FOR_TESTS.slice(1);
+    // Same length as the canonical table, other ids: only the id comparison catches it.
+    const renamed = ALL_CONDITIONS_MET_FOR_TESTS.map((c) => ({ ...c, id: `${c.id}-forged` }));
     await expect(runCampaignGraph(h.input, [])).rejects.toThrow("activation table");
     await expect(runCampaignGraph(h.input, partial)).rejects.toThrow("activation table");
+    await expect(runCampaignGraph(h.input, renamed)).rejects.toThrow("activation table");
     expect(() => buildCampaignGraph(h.input, [])).toThrow("activation table");
     expect([h.opened(), h.starts.length]).toEqual([0, 0]);
   });

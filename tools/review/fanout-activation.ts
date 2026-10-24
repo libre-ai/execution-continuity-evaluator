@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { isAbsolute, resolve, sep } from "node:path";
 
 // Conditions under which the LangGraph runtime may run REAL review passes.
@@ -20,11 +20,16 @@ import { isAbsolute, resolve, sep } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 
-/** True when `path` is repository-relative, stays under the root, and exists. */
-function isProofInRepository(path: string): boolean {
+/**
+ * True when `path` is repository-relative, exists, and stays under the root
+ * once links are followed: a link inside the root to a file outside it is not
+ * a proof. @internal `root` is a parameter for the tests only.
+ */
+export function isProofInRepository(path: string, root: string = REPO_ROOT): boolean {
   if (isAbsolute(path)) return false;
-  const resolved = resolve(REPO_ROOT, path);
-  return resolved.startsWith(`${REPO_ROOT}${sep}`) && existsSync(resolved);
+  const resolved = resolve(root, path);
+  if (!existsSync(resolved)) return false;
+  return realpathSync(resolved).startsWith(`${realpathSync(root)}${sep}`);
 }
 
 export interface ActivationCondition {

@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import {
   type ActivationCondition,
   activationRefusal,
   assertNoPublisherTelemetry,
+  isProofInRepository,
   LANGGRAPH_ACTIVATION_CONDITIONS,
   publisherTelemetryVariables,
   unmetConditions,
@@ -63,6 +66,18 @@ describe("activation conditions", () => {
     });
     expect(escaping.evidence?.startsWith("..")).toBe(true);
     expect(unmetConditions([absolute, escaping])).toEqual([absolute, escaping]);
+  });
+
+  test("a link inside the root to a file outside it is not a proof", () => {
+    const root = mkdtempSync(join(tmpdir(), "activation-root-"));
+    try {
+      writeFileSync(join(root, "inside.test.ts"), "");
+      symlinkSync("/etc/hosts", join(root, "outside-link.test.ts"));
+      expect(isProofInRepository("inside.test.ts", root)).toBe(true);
+      expect(isProofInRepository("outside-link.test.ts", root)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test("a condition whose named proof is not in the repository stays unmet", () => {
