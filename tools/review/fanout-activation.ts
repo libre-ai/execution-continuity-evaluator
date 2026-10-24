@@ -9,8 +9,9 @@ import { isAbsolute, resolve, sep } from "node:path";
 // their red vectors pass (ADR-0045 decision 4), and ADR-0058 section 3
 // condition 4 adds the egress vector: "a harness that does not produce this
 // refusal does not activate the worker". Work package WP-2 ships the runtime;
-// WP-3 and WP-4 ship the proofs. Until they do, the LangGraph path answers
-// `--dry-run` and refuses everything else.
+// WP-3 ships the proofs of INV-a to INV-c (tools/review/vectors), WP-4 the
+// egress and adaptive-attack proofs. Until every condition holds, the LangGraph
+// path answers `--dry-run` and refuses everything else.
 //
 // The table is code, not configuration: nothing in the environment or on the
 // command line can mark a condition met. A condition flips to `satisfied: true`
@@ -50,24 +51,24 @@ export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = [
       "no untrusted string in front of a model that holds a write, execute or network tool",
     source: "ADR-0045 decision 1 (INV-a), CA-26",
     workPackage: "WP-3",
-    satisfied: false,
-    evidence: null,
+    satisfied: true,
+    evidence: "tools/review/vectors/inv-a-read-only-passes.test.ts",
   },
   {
     id: "inv-b",
     requirement: "provenance by value, policy on every effect argument",
     source: "ADR-0045 decision 1 (INV-b), CA-27",
     workPackage: "WP-3",
-    satisfied: false,
-    evidence: null,
+    satisfied: true,
+    evidence: "tools/review/vectors/inv-b-effect-arguments.test.ts",
   },
   {
     id: "inv-c",
     requirement: "quarantine output with a closed vocabulary",
     source: "ADR-0045 decision 1 (INV-c), CA-28",
     workPackage: "WP-3",
-    satisfied: false,
-    evidence: null,
+    satisfied: true,
+    evidence: "tools/review/vectors/inv-c-closed-vocabulary.test.ts",
   },
   {
     id: "telemetry-egress-refused",
