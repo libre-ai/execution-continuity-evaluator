@@ -55,15 +55,22 @@ function verdictWith(fields: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
+function block(fields: Record<string, unknown>): string {
+  return `\`\`\`json\n${JSON.stringify(verdictWith(fields))}\n\`\`\``;
+}
+
+async function campaignReplying(driver: DriverName, reply: string): Promise<RealCampaign> {
+  const fixture = await makeFixture(ROLES);
+  fixtures.push(fixture);
+  await setFakePiReply(fixture, reply);
+  return runRealCampaign(fixture, driver, driver);
+}
+
 async function campaignWith(
   driver: DriverName,
   fields: Record<string, unknown>,
 ): Promise<RealCampaign> {
-  const fixture = await makeFixture(ROLES);
-  fixtures.push(fixture);
-  const verdict = JSON.stringify(verdictWith(fields));
-  await setFakePiReply(fixture, `review done\n\n\`\`\`json\n${verdict}\n\`\`\``);
-  return runRealCampaign(fixture, driver, driver);
+  return campaignReplying(driver, `review done\n\n${block(fields)}`);
 }
 
 /** What a campaign decided, without the ids and durations that differ between runs. */
@@ -191,6 +198,35 @@ describe("vector 3: free text of a valid verdict has no effect on the aggregate"
 
     expect(campaign.outcome.failed).toBe(ROLES.length);
     expect(campaign.outputFiles).toEqual(["events.jsonl"]);
+    held += 1;
+  });
+});
+
+describe("vector 3: exactly one verdict block, or none is recorded", () => {
+  test.each(
+    DRIVERS,
+  )("%s driver: two valid blocks that disagree are refused, whichever would be read", async (driver) => {
+    started += 1;
+    // Both blocks pass validation on their own: picking the first or the last
+    // would record a verdict, and a human reading the reply might see the other.
+    const approve = block({});
+    const reject = block({
+      verdict: "reject",
+      findings: {
+        blocking: [{ title: "x", detail: "y" }],
+        major: [],
+        minor: [],
+        nonBlocking: [],
+      },
+    });
+    const campaign = await campaignReplying(driver, `${approve}\n\nfinal:\n\n${reject}`);
+
+    expect(campaign.outcome.failed).toBe(ROLES.length);
+    for (const result of campaign.outcome.results) {
+      expect(result.errors.join("\n")).toContain("exactly one is required");
+    }
+    expect(campaign.outputFiles).toEqual(["events.jsonl"]);
+    expect(campaign.invocations).toHaveLength(ROLES.length);
     held += 1;
   });
 });

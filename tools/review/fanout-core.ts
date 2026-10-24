@@ -363,14 +363,24 @@ export function buildPassArgv(plan: ReviewPlan, piBinary: string, prompt: string
   ];
 }
 
+/**
+ * The verdict block of a pass. The prompt asks for exactly one; with two, the
+ * block a human reads first and the block recorded could differ, so any count
+ * other than one is refused rather than resolved (closed when in doubt).
+ */
 export function extractVerdict(output: string): unknown {
   const fences = [...output.matchAll(/```json\s*\n([\s\S]*?)```/g)];
-  const last = fences.at(-1);
-  if (last === undefined) {
+  const only = fences[0];
+  if (only === undefined) {
     throw new Error("no fenced ```json verdict block found in agent output");
   }
+  if (fences.length > 1) {
+    throw new Error(
+      `${fences.length} fenced \`\`\`json blocks in agent output; exactly one is required`,
+    );
+  }
   try {
-    return JSON.parse(last[1] ?? "");
+    return JSON.parse(only[1] ?? "");
   } catch (cause) {
     throw new Error(`verdict block is not valid JSON: ${String(cause)}`);
   }

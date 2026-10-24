@@ -191,7 +191,12 @@ describe("buildPrompt", () => {
 });
 
 describe("extractVerdict", () => {
-  test("parses the last fenced json block", () => {
+  test("parses the one fenced json block", () => {
+    const output = ["analysis…", "final:", "```json", '{"verdict": "approve"}', "```"].join("\n");
+    expect(extractVerdict(output)).toEqual({ verdict: "approve" });
+  });
+
+  test("refuses more than one fenced json block: the prompt asks for exactly one", () => {
     const output = [
       "analysis…",
       "```json",
@@ -202,7 +207,7 @@ describe("extractVerdict", () => {
       '{"verdict": "approve"}',
       "```",
     ].join("\n");
-    expect(extractVerdict(output)).toEqual({ verdict: "approve" });
+    expect(() => extractVerdict(output)).toThrow(/2 fenced ```json blocks/);
   });
 
   test("throws without a fenced block or with invalid JSON", () => {
