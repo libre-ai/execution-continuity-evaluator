@@ -52,8 +52,12 @@ les citations d'ADR-0058 et d'ADR-0045 de ce document sont lues à
   (`project-governance/docs/architecture/forge/REPOSITORY-ARCHITECTURE.md:20`).
 - Fiche de la méthode : dépendance « decision core and review fan-out of the method's agent loops »
   (`project-governance/ecosystem/cards/method.project.v1.yaml:56-58`).
-- Génération de flotte : `0db2e10e` (2026-10-13), `code-validation.yml:13,17` ;
-  `project-governance/ecosystem/fleet-pins.v1.yaml:208-210`.
+- Génération de flotte : celle que portent `code-validation.yml:13,17` (`grep -n
+  'project-governance' .github/workflows/code-validation.yml`) ; son entrée dans
+  `project-governance/ecosystem/fleet-pins.v1.yaml` (`grep -n 'sha:' ecosystem/fleet-pins.v1.yaml`
+  dans `project-governance`). Un fait qui change à chaque montée de génération se résout, il ne
+  s'écrit pas : l'outil de montée de flotte refuse un dépôt dont la documentation porte l'ancienne
+  génération hors d'une surface de pin.
 
 ### 1.2 Ce que le code fait
 
@@ -493,7 +497,7 @@ ne l'exige pas et le domaine Rust d'`ai-work-supervision` n'importe aucun contra
 | `schemas-and-contracts` — `@libre-ai/contracts-authority` | `file:../schemas-and-contracts` | checkout frère de la composition | `package.json:16` |
 | `schemas-and-contracts` — `@libre-ai/envelope` | `file:../../../schemas-and-contracts/packages/envelope` | idem | `tools/review/package.json:12` |
 | `project-governance` — `@libre-ai/governance` (gates) | `file:../project-governance` | idem | `package.json:12,15` |
-| `project-governance` — `validate-composition.yml` | `uses:` | `0db2e10e3ea785c31c101914483ed501ec4cbb7a` | `code-validation.yml:13` |
+| `project-governance` — `validate-composition.yml` | `uses:` | la génération du pin (`code-validation.yml:13`, résolue par `grep`, jamais recopiée ici) | `code-validation.yml:13` |
 
 `a82d7b54` est ancêtre de la tête du clone de `schemas-and-contracts` (`216ffb92`), 7 commits en
 arrière (`git -C .clones/schemas-and-contracts merge-base --is-ancestor a82d7b54 HEAD`, puis
