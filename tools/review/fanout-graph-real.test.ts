@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parsePlan } from "./fanout-core";
 import {
+  ALL_CONDITIONS_MET_FOR_TESTS,
   disposeFixture,
   type Fixture,
   fixtureGit,
@@ -20,10 +21,10 @@ import {
 } from "./fanout-run";
 
 // The two drivers, with the real effects (git worktrees, a stand-in `pi`, the
-// journal, the verdict files) instead of scripted executors. The graph path is
-// not selectable for real passes from the command line until its activation
-// conditions hold (fanout-activation.ts); this is how its behaviour is pinned
-// in the meantime, so that activating it changes a condition and nothing else.
+// journal, the verdict files) instead of scripted executors. The graph driver
+// refuses real passes until its activation conditions hold (fanout-activation.ts);
+// these tests hand it a table marked met, so its behaviour is pinned in the
+// meantime and activating it changes a condition and nothing else.
 
 // Each test runs two campaigns with real worktrees and a child process per pass.
 setDefaultTimeout(30000);
@@ -113,7 +114,12 @@ async function bothDrivers(roles: readonly string[], piMode: string) {
   const fixture = await makeFixture(roles);
   fixtures.push(fixture);
   const direct = await drive(fixture, runCampaignDirect, "direct", piMode);
-  const graph = await drive(fixture, runCampaignGraph, "graph", piMode);
+  const graph = await drive(
+    fixture,
+    (input) => runCampaignGraph(input, ALL_CONDITIONS_MET_FOR_TESTS),
+    "graph",
+    piMode,
+  );
   return { fixture, direct, graph };
 }
 

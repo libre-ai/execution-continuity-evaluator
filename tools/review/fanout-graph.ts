@@ -1,5 +1,10 @@
 import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
-import { assertNoPublisherTelemetry } from "./fanout-activation";
+import {
+  type ActivationCondition,
+  activationRefusal,
+  assertNoPublisherTelemetry,
+  LANGGRAPH_ACTIVATION_CONDITIONS,
+} from "./fanout-activation";
 import type { ReviewJob } from "./fanout-core";
 import {
   announceCampaign,
@@ -31,6 +36,9 @@ import {
 //     that dies is re-run, as it always was. The envelope key, which must never
 //     be serialized, lives in the executor's closure, not in graph state.
 //   * Telemetry is refused before the graph is built (`assertNoPublisherTelemetry`).
+//   * Real passes are refused while an activation condition is unmet
+//     (fanout-activation.ts). The refusal lives here, where the passes run, and
+//     not only in the command line that selects this driver.
 
 const CampaignState = Annotation.Root({
   run: Annotation<ReviewJob[]>({ reducer: (_, next) => next, default: () => [] }),
@@ -103,8 +111,23 @@ function resultsInPlanOrder(run: readonly ReviewJob[], session: Session): JobRes
   });
 }
 
+/** Throws, before anything opens, when real passes are asked for and a condition is unmet. */
+function refuseUnactivatedPasses(
+  input: CampaignInput,
+  conditions: readonly ActivationCondition[],
+): void {
+  if (input.dryRun) return;
+  const refusal = activationRefusal(conditions);
+  if (refusal !== null) throw new Error(refusal);
+}
+
 /** @internal Exposed so a test can inspect the compiled graph; use `runCampaignGraph`. */
-export function buildCampaignGraph(input: CampaignInput, session: Session = newSession()) {
+export function buildCampaignGraph(
+  input: CampaignInput,
+  conditions: readonly ActivationCondition[] = LANGGRAPH_ACTIVATION_CONDITIONS,
+  session: Session = newSession(),
+) {
+  refuseUnactivatedPasses(input, conditions);
   const graph = new StateGraph(CampaignState)
     .addNode("roles", () => {
       const planned = planCampaign(input);
@@ -162,12 +185,21 @@ function fanOut(state: Pick<CampaignStateValue, "batches" | "cursor">): Send[] |
   return lot.map((job) => new Send("pass", { job }));
 }
 
-/** The LangGraph driver. Same contract as `runCampaignDirect`. */
-export async function runCampaignGraph(input: CampaignInput): Promise<CampaignOutcome> {
+/**
+ * The LangGraph driver. Same contract as `runCampaignDirect`, plus the
+ * activation table: real passes are refused until every condition holds.
+ * `conditions` is for the tests that pin real behaviour; production callers
+ * leave it to the table in fanout-activation.ts.
+ */
+export async function runCampaignGraph(
+  input: CampaignInput,
+  conditions: readonly ActivationCondition[] = LANGGRAPH_ACTIVATION_CONDITIONS,
+): Promise<CampaignOutcome> {
   assertNoPublisherTelemetry();
+  refuseUnactivatedPasses(input, conditions);
   const session = newSession();
   try {
-    const graph = buildCampaignGraph(input, session);
+    const graph = buildCampaignGraph(input, conditions, session);
     const finalState = await graph.invoke(
       {},
       {

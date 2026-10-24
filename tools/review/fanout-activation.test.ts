@@ -47,9 +47,16 @@ describe("activation conditions", () => {
   });
 
   test("when every condition is met and proven there is nothing to refuse", () => {
-    const met = [condition({ satisfied: true, evidence: "tools/review/vectors/a.test.ts" })];
+    const met = [condition({ satisfied: true, evidence: "tools/review/fanout-activation.test.ts" })];
     expect(unmetConditions(met)).toEqual([]);
     expect(activationRefusal(met)).toBeNull();
+  });
+
+  test("a condition whose named proof is not in the repository stays unmet", () => {
+    // A pull request that flips a condition with a wrong path must not lift the refusal.
+    const missing = condition({ satisfied: true, evidence: "tools/review/vectors/absent.test.ts" });
+    expect(unmetConditions([missing])).toEqual([missing]);
+    expect(activationRefusal([missing])).not.toBeNull();
   });
 
   test("the refusal names each unmet condition with its source and its work package", () => {

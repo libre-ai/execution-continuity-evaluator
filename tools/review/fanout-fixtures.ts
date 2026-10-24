@@ -2,12 +2,26 @@ import { readdirSync, realpathSync } from "node:fs";
 import { chmod, copyFile, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { type ActivationCondition, LANGGRAPH_ACTIVATION_CONDITIONS } from "./fanout-activation";
 
 // Test support for the fan-out CLI: a throwaway git repository, a stand-in for
 // the `pi` binary, and a way to run `fanout.ts` against both. Nothing here is
 // imported by the orchestrator itself.
 
 const FANOUT_PATH = join(import.meta.dir, "fanout.ts");
+
+/**
+ * The activation table with every condition marked met, for the tests that pin
+ * what the graph driver does with real passes (against scripted executors or a
+ * stand-in `pi`). It proves nothing: the evidence it names is this test support
+ * file, and no orchestrator source may import it (authority-boundary.test.ts).
+ */
+export const ALL_CONDITIONS_MET_FOR_TESTS: readonly ActivationCondition[] =
+  LANGGRAPH_ACTIVATION_CONDITIONS.map((condition) => ({
+    ...condition,
+    satisfied: true,
+    evidence: "tools/review/fanout-fixtures.ts",
+  }));
 
 export interface Fixture {
   readonly dir: string;

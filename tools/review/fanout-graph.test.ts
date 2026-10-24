@@ -7,6 +7,7 @@ import {
   routeAfterLots,
   runCampaignGraph,
 } from "./fanout-graph";
+import { ALL_CONDITIONS_MET_FOR_TESTS } from "./fanout-fixtures";
 import {
   type CampaignInput,
   type CampaignIo,
@@ -140,7 +141,7 @@ async function both(
   const direct = harness(roles, concurrency, options);
   const graph = harness(roles, concurrency, options);
   const directOutcome = await runCampaignDirect(direct.input);
-  const graphOutcome = await runCampaignGraph(graph.input);
+  const graphOutcome = await runCampaignGraph(graph.input, ALL_CONDITIONS_MET_FOR_TESTS);
   return { direct, graph, directOutcome, graphOutcome };
 }
 
@@ -199,7 +200,9 @@ describe("graph and direct drivers agree", () => {
     const direct = harness(["a", "b", "c"], 2, options);
     const graph = harness(["a", "b", "c"], 2, options);
     await expect(runCampaignDirect(direct.input)).rejects.toThrow("pass b blew up");
-    await expect(runCampaignGraph(graph.input)).rejects.toThrow("pass b blew up");
+    await expect(runCampaignGraph(graph.input, ALL_CONDITIONS_MET_FOR_TESTS)).rejects.toThrow(
+      "pass b blew up",
+    );
     expect([graph.disposed(), graph.verified()]).toEqual([direct.disposed(), direct.verified()]);
     expect(graph.disposed()).toBe(1);
   });
@@ -215,7 +218,7 @@ describe("lots", () => {
 
   test("a lot finishes before the next one starts", async () => {
     const h = harness(["a", "b", "c", "d", "e"], 2, { script: { delayMs: 10 } });
-    await runCampaignGraph(h.input);
+    await runCampaignGraph(h.input, ALL_CONDITIONS_MET_FOR_TESTS);
     const firstStartOfNextLot = (roles: string[]) =>
       Math.min(...roles.map((role) => h.timeline.indexOf(`start:${role}`)));
     const lastEndOfLot = (roles: string[]) =>
@@ -284,7 +287,10 @@ describe("the graph stays internal", () => {
     const h = harness(["a", "b"], 2, {
       script: { failing: new Set(["a", "b"]), errorText: marker },
     });
-    const state = await buildCampaignGraph(h.input).invoke({}, { maxConcurrency: 2 });
+    const state = await buildCampaignGraph(h.input, ALL_CONDITIONS_MET_FOR_TESTS).invoke(
+      {},
+      { maxConcurrency: 2 },
+    );
 
     expect(JSON.stringify(state)).not.toContain("HOSTILE-MARKER");
     expect(state.settled).toHaveLength(2);
@@ -296,7 +302,10 @@ describe("the graph stays internal", () => {
 
   test("the compiled graph carries no persistence layer", () => {
     const h = harness(["a"], 1);
-    const graph = buildCampaignGraph(h.input) as unknown as Record<string, unknown>;
+    const graph = buildCampaignGraph(h.input, ALL_CONDITIONS_MET_FOR_TESTS) as unknown as Record<
+      string,
+      unknown
+    >;
     // Property name assembled from parts: the persistence gates scan this directory (CA-23).
     expect(graph[`${["check", "point"].join("")}er`]).toBeFalsy();
   });
@@ -304,8 +313,30 @@ describe("the graph stays internal", () => {
   test("a plan with many roles and a low concurrency finishes within the recursion limit", async () => {
     const roles = Array.from({ length: 60 }, (_, index) => `role-${index}`);
     const h = harness(roles, 1);
-    const outcome = await runCampaignGraph(h.input);
+    const outcome = await runCampaignGraph(h.input, ALL_CONDITIONS_MET_FOR_TESTS);
     expect(outcome.results).toHaveLength(60);
     expect(outcome.failed).toBe(0);
+  });
+});
+
+// The activation table is held by the driver, not only by the command line: a
+// script that imports the driver gets the same refusal as `fanout.ts`.
+describe("activation is enforced by the driver itself", () => {
+  test("real passes are refused while a condition is unmet, before anything opens", async () => {
+    const h = harness(["a", "b"], 2);
+    await expect(runCampaignGraph(h.input)).rejects.toThrow("activation condition(s) unmet");
+    expect([h.opened(), h.starts.length, h.disposed(), h.verified()]).toEqual([0, 0, 0, 0]);
+  });
+
+  test("building the graph for real passes is refused too", () => {
+    const h = harness(["a"], 1);
+    expect(() => buildCampaignGraph(h.input)).toThrow("activation condition(s) unmet");
+  });
+
+  test("a dry run needs no activation", async () => {
+    const h = harness(["a", "b"], 2, { dryRun: true });
+    const outcome = await runCampaignGraph(h.input);
+    expect(outcome.results).toEqual([]);
+    expect([h.opened(), h.starts.length]).toEqual([0, 0]);
   });
 });

@@ -86,6 +86,15 @@ describe("the default path does not load the package", () => {
     expect(grepCount(text, /await import\("\.\/fanout-graph"\)/)).toBe(1);
   });
 
+  test("no orchestrator source imports the test support, which holds a table marked met", async () => {
+    const sources = orchestratorSources();
+    expect(sources).toContain("fanout-graph.ts");
+    for (const name of sources) {
+      const text = await read(join(REVIEW_DIR, name));
+      expect(grepCount(text, /fanout-fixtures|ALL_CONDITIONS_MET_FOR_TESTS/)).toBe(0);
+    }
+  });
+
   test("no other orchestrator source imports the graph driver", async () => {
     for (const name of orchestratorSources()) {
       if (name === "fanout.ts" || name === "fanout-graph.ts") continue;

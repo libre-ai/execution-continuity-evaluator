@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 // Conditions under which the LangGraph runtime may run REAL review passes.
 //
 // Admitting the runtime (ADR-0058 section 1) lifts no activation condition: an
@@ -12,6 +15,10 @@
 // The table is code, not configuration: nothing in the environment or on the
 // command line can mark a condition met. A condition flips to `satisfied: true`
 // in the pull request that adds its vector, and names that vector in `evidence`.
+// The graph driver applies the table itself (fanout-graph.ts), so a script that
+// imports the driver meets the same refusal as the command line.
+
+const REPO_ROOT = join(import.meta.dir, "..", "..");
 
 export interface ActivationCondition {
   readonly id: string;
@@ -68,11 +75,22 @@ export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = [
   },
 ];
 
-/** A condition counts as met only when it says so AND names the proof. */
+/**
+ * A condition counts as met only when it says so AND names a proof that exists
+ * in the repository: a wrong path in the pull request that flips it must not
+ * lift the refusal.
+ */
 export function unmetConditions(
   conditions: readonly ActivationCondition[] = LANGGRAPH_ACTIVATION_CONDITIONS,
 ): ActivationCondition[] {
-  return conditions.filter((condition) => !(condition.satisfied && condition.evidence !== null));
+  return conditions.filter(
+    (condition) =>
+      !(
+        condition.satisfied &&
+        condition.evidence !== null &&
+        existsSync(join(REPO_ROOT, condition.evidence))
+      ),
+  );
 }
 
 /** The refusal message for real passes on the LangGraph path, or null when activated. */
