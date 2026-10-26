@@ -11,7 +11,10 @@ l'hypothèse H7, le quatrième défaut de la section 2 (ADR-0045), la ligne Lang
 phrases de la section 8 (déplacement de `tools/review`, validation du jalon par M8 et M9) et la
 section 9 (paquets de travail), qui portent la décision du propriétaire du 2026-10-23 (ADR-0058,
 premier consommateur LangGraph JS de la flotte, sous ADR-0045) ; la ligne `WP-4` de la section 9 et
-trois phrases de son préambule, qui portent la décision du propriétaire du 2026-10-24 (CA-32) ; et des
+trois phrases de son préambule, qui portent la décision du propriétaire du 2026-10-24 (CA-32) ; la
+ligne `WP-7`, le retrait de `CA-31` de la ligne `WP-4`, une phrase du préambule et le compte de la
+porte, qui portent la
+décision du propriétaire du 2026-10-26 (scission de WP-4) ; et des
 réécritures de forme exigées par la norme des paquets de travail de `libre-ai/project-governance`
 (`docs/specifications/WORK-PACKAGES.md`) : chaque paramètre écrit entre chevrons y est écrit en
 capitales (`ORG/DEPOT`, `DEPOT-CONSOMMATEUR`, `REV`, `SUJET/SHA`), le jalon B prime s'écrit `B'`.
@@ -256,16 +259,20 @@ au moins à `décision` (`ecosystem/work-package-policy.v1.yaml`, `approvedFrom`
 dédiée qui a promu ce document l'a fait en citant l'arbitrage du propriétaire du 2026-10-23. La
 ligne `WP-4` a été étendue ensuite par une pull request dédiée, qui cite l'arbitrage du propriétaire
 du 2026-10-24 (CA-32, et les chemins du mécanisme de R-13 et des deux pilotes) ; l'issue de ce
-paquet cite le commit de cette extension. Un paquet s'ouvre par une issue qui nomme ce document et
+paquet cite le commit de cette extension. Cette ligne a ensuite été scindée par une pull request dédiée,
+qui cite l'arbitrage du propriétaire du 2026-10-26 : `CA-31` passe à la ligne `WP-7`, parce que son
+rejeu de sorties de modèle enregistrées contre les contrôles déterministes ne dépend pas du
+mécanisme de R-13, et WP-7 peut donc précéder WP-4 ; les issues de ces deux paquets citent le commit
+de cette scission. Un paquet s'ouvre par une issue qui nomme ce document et
 sa ligne.
 
 Chaque périmètre nomme des chemins sous `tools/review/` ; `tools/review/gates/`,
 `tools/review/vectors/` et `tools/review/advisories.v1.json` n'existent pas encore au commit lu
-(`git ls-files tools/review` rend 8 fichiers) : ils sont déclarés à créer par WP-1, WP-3 et WP-4,
+(`git ls-files tools/review` rend 8 fichiers) : ils sont déclarés à créer par WP-1, WP-3, WP-4 et WP-7,
 et le lecteur de la norme le signale comme tel ; `tools/review/confinement/`, ajouté le 2026-10-24
 pour le mécanisme de R-13, est déclaré à créer par WP-4. `docs/evidence/` existe (une campagne).
 
-Porte : les six paquets sont `two-way`. Aucun ne modifie un contrat, un lock, une fiche de phase
+Porte : les sept paquets sont `two-way`. Aucun ne modifie un contrat, un lock, une fiche de phase
 acceptée ni un ruleset ; le paquet entre dans un espace de travail Bun propre à `tools/review`,
 jamais dans `Cargo.toml` ; le chemin d'exécution sans le paquet reste vivant (CA-29), de sorte que le
 retrait est une pull request qui défait l'ajout, sans migration d'un run ni d'un verdict enregistré ;
@@ -279,6 +286,7 @@ de l'orchestrateur ou le déplacement du dépôt (AB-4), n'est pas dans ce jalon
 | `WP-1` | `CA-18`, `CA-21`, `CA-23` | `tools/review/gates/**`, `tools/review/advisories.v1.json`, `package.json` | `bun test tools/review/gates` | `two-way` |
 | `WP-2` | `CA-19`, `CA-20`, `CA-25` | `tools/review/*.ts`, `tools/review/package.json`, `tools/review/bun.lock`, `tools/review/bunfig.toml`, `package.json` | `bun run check:review-tools` | `two-way` |
 | `WP-3` | `CA-26`, `CA-27`, `CA-28` | `tools/review/*.ts`, `tools/review/vectors/**` | `bun test tools/review/vectors` | `two-way` |
-| `WP-4` | `CA-22`, `CA-31`, `CA-32` | `tools/review/vectors/**`, `tools/review/confinement/**`, `tools/review/*.ts`, `docs/evidence/**` | `bun test tools/review/vectors` | `two-way` |
+| `WP-4` | `CA-22`, `CA-32` | `tools/review/vectors/**`, `tools/review/confinement/**`, `tools/review/*.ts`, `docs/evidence/**` | `bun test tools/review/vectors` | `two-way` |
 | `WP-5` | `CA-24` | `docs/evidence/**`, `project.v1.yaml`, `README.md` | `grep -n 'langgraph' project.v1.yaml` | `two-way` |
 | `WP-6` | `CA-29`, `CA-30` | `tools/review/*.ts`, `project.v1.yaml`, `README.md` | `bun run check:review-tools` | `two-way` |
+| `WP-7` | `CA-31` | `tools/review/vectors/**`, `tools/review/fanout-activation.ts`, `docs/evidence/**` | `bun test tools/review/vectors` | `two-way` |
