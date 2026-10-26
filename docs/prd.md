@@ -268,7 +268,7 @@ sa ligne.
 
 Chaque périmètre nomme des chemins sous `tools/review/` ; `tools/review/gates/`,
 `tools/review/vectors/` et `tools/review/advisories.v1.json` n'existent pas encore au commit lu
-(`git ls-files tools/review` rend 8 fichiers) : ils sont déclarés à créer par WP-1, WP-3 et WP-4,
+(`git ls-files tools/review` rend 8 fichiers) : ils sont déclarés à créer par WP-1, WP-3, WP-4 et WP-7,
 et le lecteur de la norme le signale comme tel ; `tools/review/confinement/`, ajouté le 2026-10-24
 pour le mécanisme de R-13, est déclaré à créer par WP-4. `docs/evidence/` existe (une campagne).
 
