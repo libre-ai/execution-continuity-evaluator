@@ -22,15 +22,17 @@ const FANOUT_PATH = join(import.meta.dir, "fanout.ts");
 
 /**
  * The activation table with every condition marked met, for the tests that pin
- * what the graph driver does with real passes (against scripted executors or a
- * stand-in `pi`). It proves nothing: the evidence it names is this test support
- * file, and no orchestrator source may import it (authority-boundary.test.ts).
+ * what the drivers do with real passes (against scripted executors or a
+ * stand-in `pi`). It proves nothing: every condition names the INV-a vector,
+ * only because a proof must be a test file of tools/review/vectors/
+ * (fanout-activation.ts); no orchestrator source may import it
+ * (authority-boundary.test.ts).
  */
 export const ALL_CONDITIONS_MET_FOR_TESTS: readonly ActivationCondition[] =
   LANGGRAPH_ACTIVATION_CONDITIONS.map((condition) => ({
     ...condition,
     satisfied: true,
-    evidence: "tools/review/fanout-fixtures.ts",
+    evidence: "tools/review/vectors/inv-a-read-only-passes.test.ts",
   }));
 
 export interface Fixture {

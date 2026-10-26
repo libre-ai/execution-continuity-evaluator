@@ -1,5 +1,5 @@
-import { existsSync, realpathSync } from "node:fs";
-import { isAbsolute, resolve, sep } from "node:path";
+import { lstatSync, realpathSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 // Conditions under which the LangGraph runtime may run REAL review passes.
 //
@@ -21,16 +21,23 @@ import { isAbsolute, resolve, sep } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 
+// A proof is a test file of the vectors directory, named by its plain
+// repository-relative path: not a directory, not any file that happens to
+// exist (package.json), not a test elsewhere in the tree.
+const PROOF_PATH_PATTERN = /^tools\/review\/vectors\/[A-Za-z0-9][A-Za-z0-9._-]*\.test\.ts$/;
+
 /**
- * True when `path` is repository-relative, exists, and stays under the root
- * once links are followed: a link inside the root to a file outside it is not
- * a proof. @internal `root` is a parameter for the tests only.
+ * True when `path` names a regular test file under tools/review/vectors/ of
+ * the repository: neither a link (a link inside the root to a file elsewhere
+ * is not a proof) nor a directory, and the path resolves to itself.
+ * @internal `root` is a parameter for the tests only.
  */
 export function isProofInRepository(path: string, root: string = REPO_ROOT): boolean {
-  if (isAbsolute(path)) return false;
+  if (!PROOF_PATH_PATTERN.test(path)) return false;
   const resolved = resolve(root, path);
-  if (!existsSync(resolved)) return false;
-  return realpathSync(resolved).startsWith(`${realpathSync(root)}${sep}`);
+  const entry = lstatSync(resolved, { throwIfNoEntry: false });
+  if (entry === undefined || !entry.isFile()) return false;
+  return realpathSync(resolved) === join(realpathSync(root), path);
 }
 
 export interface ActivationCondition {
@@ -44,7 +51,17 @@ export interface ActivationCondition {
   readonly evidence: string | null;
 }
 
-export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = [
+/**
+ * The table, and each condition in it, frozen: no code that imports the
+ * module can mark a condition met or swap a proof at run time; changing the
+ * table is a change of this file, visible in review.
+ */
+function frozenTable(table: ActivationCondition[]): readonly ActivationCondition[] {
+  for (const condition of table) Object.freeze(condition);
+  return Object.freeze(table);
+}
+
+export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = frozenTable([
   {
     id: "inv-a",
     requirement:
@@ -86,7 +103,7 @@ export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = [
     satisfied: false,
     evidence: null,
   },
-];
+]);
 
 /**
  * A condition counts as met only when it says so AND names a proof that exists

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import {
@@ -46,6 +46,25 @@ describe("activation conditions", () => {
     for (const c of met) expect(isProofInRepository(c.evidence ?? "")).toBe(true);
   });
 
+  // F8: nothing that imports the module can mark a condition met at run time.
+  test("the table and each of its conditions are frozen", () => {
+    expect(Object.isFrozen(LANGGRAPH_ACTIVATION_CONDITIONS)).toBe(true);
+    for (const c of LANGGRAPH_ACTIVATION_CONDITIONS)
+      expect([c.id, Object.isFrozen(c)]).toEqual([c.id, true]);
+    const table = LANGGRAPH_ACTIVATION_CONDITIONS as ActivationCondition[];
+    const first = LANGGRAPH_ACTIVATION_CONDITIONS[0] as { satisfied: boolean };
+    expect(() => table.push(condition({ satisfied: true }))).toThrow(TypeError);
+    expect(() => table.splice(3)).toThrow(TypeError);
+    const unmetBefore = unmetConditions().length;
+    expect(() => {
+      for (const c of LANGGRAPH_ACTIVATION_CONDITIONS)
+        (c as { satisfied: boolean }).satisfied = true;
+    }).toThrow(TypeError);
+    expect(first.satisfied).toBe(true);
+    expect(unmetConditions()).toHaveLength(unmetBefore);
+    expect(activationRefusal()).not.toBeNull();
+  });
+
   test("a condition that claims to be met without naming its proof stays unmet", () => {
     const claimed = condition({ satisfied: true, evidence: null });
     expect(unmetConditions([claimed])).toEqual([claimed]);
@@ -60,7 +79,10 @@ describe("activation conditions", () => {
 
   test("when every condition is met and proven there is nothing to refuse", () => {
     const met = [
-      condition({ satisfied: true, evidence: "tools/review/fanout-activation.test.ts" }),
+      condition({
+        satisfied: true,
+        evidence: "tools/review/vectors/inv-b-effect-arguments.test.ts",
+      }),
     ];
     expect(unmetConditions(met)).toEqual([]);
     expect(activationRefusal(met)).toBeNull();
@@ -79,10 +101,45 @@ describe("activation conditions", () => {
   test("a link inside the root to a file outside it is not a proof", () => {
     const root = mkdtempSync(join(tmpdir(), "activation-root-"));
     try {
-      writeFileSync(join(root, "inside.test.ts"), "");
-      symlinkSync("/etc/hosts", join(root, "outside-link.test.ts"));
-      expect(isProofInRepository("inside.test.ts", root)).toBe(true);
-      expect(isProofInRepository("outside-link.test.ts", root)).toBe(false);
+      const vectors = join(root, "tools", "review", "vectors");
+      mkdirSync(vectors, { recursive: true });
+      writeFileSync(join(vectors, "inside.test.ts"), "");
+      symlinkSync("/etc/hosts", join(vectors, "outside-link.test.ts"));
+      expect(isProofInRepository("tools/review/vectors/inside.test.ts", root)).toBe(true);
+      expect(isProofInRepository("tools/review/vectors/outside-link.test.ts", root)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // F7: a proof is a regular test file under tools/review/vectors/, nothing else.
+  test.each([
+    ["the vectors directory itself", "tools/review/vectors"],
+    ["a directory named like a test", "tools/review/vectors/dir.test.ts"],
+    ["an existing file of the root", "package.json"],
+    ["a test outside the vectors directory", "tools/review/fanout-activation.test.ts"],
+    ["a file of the vectors directory that is not a test", "tools/review/vectors/notes.ts"],
+    [
+      "a link in the vectors directory to a file inside the root",
+      "tools/review/vectors/alias.test.ts",
+    ],
+    [
+      "a traversal back into the vectors directory",
+      "tools/review/../review/vectors/inside.test.ts",
+    ],
+  ])("%s is not a proof", (_name, path) => {
+    const root = mkdtempSync(join(tmpdir(), "activation-root-"));
+    try {
+      const vectors = join(root, "tools", "review", "vectors");
+      mkdirSync(join(vectors, "dir.test.ts"), { recursive: true });
+      writeFileSync(join(vectors, "inside.test.ts"), "");
+      writeFileSync(join(vectors, "notes.ts"), "");
+      writeFileSync(join(root, "package.json"), "{}");
+      writeFileSync(join(root, "tools", "review", "fanout-activation.test.ts"), "");
+      symlinkSync(join(root, "package.json"), join(vectors, "alias.test.ts"));
+      // The control: the same root accepts a real vector.
+      expect(isProofInRepository("tools/review/vectors/inside.test.ts", root)).toBe(true);
+      expect(isProofInRepository(path, root)).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
