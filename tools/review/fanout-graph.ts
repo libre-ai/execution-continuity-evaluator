@@ -1,7 +1,9 @@
 import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 import {
   type ActivationCondition,
+  ActivationRefusedError,
   activationRefusal,
+  assertCanonicalTable,
   assertNoPublisherTelemetry,
   LANGGRAPH_ACTIVATION_CONDITIONS,
 } from "./fanout-activation";
@@ -111,29 +113,19 @@ function resultsInPlanOrder(run: readonly ReviewJob[], session: Session): JobRes
   });
 }
 
-const CANONICAL_CONDITION_IDS = LANGGRAPH_ACTIVATION_CONDITIONS.map((condition) => condition.id);
-
 /**
  * Throws, before anything opens, when real passes are asked for and a condition
  * is unmet. The table handed in must list exactly the canonical conditions, in
- * order: an empty or partial table would otherwise have nothing left to refuse.
+ * order (`assertCanonicalTable`); this driver applies all of them.
  */
 function refuseUnactivatedPasses(
   input: CampaignInput,
   conditions: readonly ActivationCondition[],
 ): void {
   if (input.dryRun) return;
-  const ids = conditions.map((condition) => condition.id);
-  if (
-    ids.length !== CANONICAL_CONDITION_IDS.length ||
-    ids.some((id, index) => id !== CANONICAL_CONDITION_IDS[index])
-  ) {
-    throw new Error(
-      `the activation table must list exactly the conditions of fanout-activation.ts (${CANONICAL_CONDITION_IDS.join(", ")}); got: ${ids.join(", ") || "none"}`,
-    );
-  }
+  assertCanonicalTable(conditions);
   const refusal = activationRefusal(conditions);
-  if (refusal !== null) throw new Error(refusal);
+  if (refusal !== null) throw new ActivationRefusedError(refusal);
 }
 
 /** @internal Exposed so a test can inspect the compiled graph; use `runCampaignGraph`. */

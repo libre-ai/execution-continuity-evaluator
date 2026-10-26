@@ -34,6 +34,18 @@ export interface DedupeResult {
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const EVIDENCE_PATH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+// A role names the scratch worktree (`<base>/<role>`) and the verdict file
+// (`<outputDir>/<role>.verdict.json`): one path segment, no separator, no
+// traversal, so neither effect can land outside the directory the plan names
+// (INV-b, CA-27: a policy on every effect argument).
+const ROLE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// provider, model and thinking each become the value of a `pi` option. A value
+// that starts with "-" or carries a blank or a control character could be read
+// as another option, or split, by a parser other than pi 1.4.0's: refuse it
+// here rather than rely on that parser (INV-b, CA-27). Format characters
+// (\p{Cf}: bidi overrides, zero-width characters) are refused too: they make
+// a value read differently from what it is, and it reaches the terminal.
+const OPTION_VALUE_PATTERN = /^[^-\s\p{Cc}\p{Cf}][^\s\p{Cc}\p{Cf}]*$/u;
 const DEFAULT_CONCURRENCY = 5;
 
 // Verdict envelope schema. Kept tool-side on purpose: it is promoted to
@@ -109,6 +121,15 @@ export const reviewVerdictSchema = {
 const ajv = new Ajv2020({ allErrors: true });
 const validateAgainstSchema = ajv.compile(reviewVerdictSchema);
 
+/**
+ * A refused plan value as a refusal message shows it. JSON.stringify escapes
+ * C0 but not DEL, C1 or the format characters (a raw CSI, bytes c2 9b, was
+ * measured in a refusal), and the refusal reaches the operator's terminal.
+ */
+function shown(value: string): string {
+  return neutralizeControls(JSON.stringify(value));
+}
+
 export function parsePlan(raw: unknown): ReviewPlan {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error("plan must be a JSON object");
@@ -131,6 +152,13 @@ export function parsePlan(raw: unknown): ReviewPlan {
     : [];
   if (roles.length === 0) errors.push("roles: non-empty string array required");
   if (new Set(roles).size !== roles.length) errors.push("roles: duplicates are not allowed");
+  for (const role of roles) {
+    if (!ROLE_PATTERN.test(role) || role.includes("..")) {
+      errors.push(
+        `roles: unsafe role (allowed: [A-Za-z0-9._-], one path segment, no ".."): ${shown(role)}`,
+      );
+    }
+  }
 
   const mode = plan.mode ?? "specialized-role";
   if (mode !== "candidate-integration" && mode !== "specialized-role") {
@@ -148,7 +176,7 @@ export function parsePlan(raw: unknown): ReviewPlan {
   for (const path of evidence) {
     if (!EVIDENCE_PATH_PATTERN.test(path) || path.includes("..")) {
       errors.push(
-        `evidence: unsafe path (allowed: [A-Za-z0-9._/-], repo-relative, no ".."): ${JSON.stringify(path)}`,
+        `evidence: unsafe path (allowed: [A-Za-z0-9._/-], repo-relative, no ".."): ${shown(path)}`,
       );
     }
   }
@@ -167,9 +195,29 @@ export function parsePlan(raw: unknown): ReviewPlan {
     typeof plan.thinking === "string" && plan.thinking.trim().length > 0
       ? plan.thinking.trim()
       : "xhigh";
+  for (const [name, value] of [
+    ["provider", provider],
+    ["model", model],
+    ["thinking", thinking],
+  ] as const) {
+    if (value.length > 0 && !OPTION_VALUE_PATTERN.test(value)) {
+      errors.push(
+        `${name}: unsafe option value (no leading "-", no blank, no control or format character): ${shown(value)}`,
+      );
+    }
+  }
 
+  // The verdicts and the journal are written under outputDir, resolved against
+  // the repository: same policy as an evidence path, so no effect lands
+  // outside the repository the plan describes (INV-b, CA-27).
   const outputDir = typeof plan.outputDir === "string" ? plan.outputDir.trim() : "";
-  if (outputDir.length === 0) errors.push("outputDir: non-empty string required");
+  if (outputDir.length === 0) {
+    errors.push("outputDir: non-empty string required");
+  } else if (!EVIDENCE_PATH_PATTERN.test(outputDir) || outputDir.includes("..")) {
+    errors.push(
+      `outputDir: unsafe path (allowed: [A-Za-z0-9._/-], repo-relative, no ".."): ${shown(outputDir)}`,
+    );
+  }
 
   if (errors.length > 0) {
     throw new Error(`invalid review plan:\n- ${errors.join("\n- ")}`);
@@ -278,17 +326,123 @@ export function buildPrompt(job: ReviewJob, evidenceDigest: string): string {
   ].join("\n");
 }
 
+// ── Tool profile of a review pass (INV-a, CA-26) ─────────────────────────────
+//
+// A pass reads untrusted content (the commit, the evidence), so the model that
+// reads it must hold no tool whose access is write, execute or network
+// (ADR-0045 decision 1). This is the one place that says which tools it holds;
+// every pass of every driver is spawned with `buildPassArgv`.
+//
+// Measured on pi 1.4.0 (dist/cli/args.js, dist/core/agent-session.js), which is
+// why the allowlist alone is not enough:
+//   * `--tools` keeps MCP tools unless an entry starts with `mcp__`: `--no-mcp`
+//     connects no server and registers no MCP tool.
+//   * an extension may register a tool under a built-in name and replace it
+//     (`read` routed over ssh is a shipped example), and the allowlist matches
+//     names: `--no-extensions` loads no extension, built-in ones included.
+//   * the worktree is the reviewed commit, so its `.pi/` and `.agents/skills`
+//     are untrusted: `--no-approve` ignores project-local files for this run.
+//   * skills add instructions, not tools; `--no-skills` keeps the operator's
+//     personal skills out of a reviewer whose verdict must not depend on them.
+// The parser ignores an unknown long option, so a misspelt flag here would be
+// silently inert: the vector pins each spelling (vectors/inv-a-*.test.ts).
+
+/** Built-in tools of pi with no write, execute or network access. */
+export const REVIEW_PASS_TOOLS = ["read", "grep", "find", "ls"] as const;
+
+const TOOL_ALLOWLIST = ["--tools", REVIEW_PASS_TOOLS.join(",")] as const;
+const TOOL_SOURCES_CLOSED = ["--no-mcp", "--no-extensions", "--no-skills", "--no-approve"] as const;
+
+export const REVIEW_PASS_PROFILE: readonly string[] = [...TOOL_ALLOWLIST, ...TOOL_SOURCES_CLOSED];
+
+/**
+ * The command line of one review pass. Every argument comes from the plan or
+ * from the orchestrator's own prompt; nothing a pass wrote reaches it (INV-b).
+ */
+export function buildPassArgv(plan: ReviewPlan, piBinary: string, prompt: string): string[] {
+  return [
+    piBinary,
+    "--print",
+    ...REVIEW_PASS_PROFILE,
+    "--provider",
+    plan.provider,
+    "--model",
+    plan.model,
+    "--thinking",
+    plan.thinking,
+    prompt,
+  ];
+}
+
+/**
+ * The verdict block of a pass. The prompt asks for exactly one; when a reply
+ * could show a human a second verdict, the block a human reads and the block
+ * recorded could differ, so the reply is refused rather than resolved (closed
+ * when in doubt). Refused: more than one ```json opening, counted on their own
+ * so a closing fence shared by two blocks cannot hide the second; any fence
+ * left once the verdict block is removed (another code block, a closing fence
+ * inside a JSON string); any run of four or more backticks, which re-nests
+ * markdown fences; any run of three or more tildes, anywhere, since CommonMark
+ * opens a code block with `~~~` too; and, once the verdict block is removed,
+ * any indented code line (four spaces or a tab) that starts a JSON object or
+ * array, which a reader sees as a second block. Indented prose stays accepted.
+ */
 export function extractVerdict(output: string): unknown {
-  const fences = [...output.matchAll(/```json\s*\n([\s\S]*?)```/g)];
-  const last = fences.at(-1);
-  if (last === undefined) {
+  const openings = [...output.matchAll(/```[ \t]*json/gi)].length;
+  if (openings === 0) {
     throw new Error("no fenced ```json verdict block found in agent output");
   }
+  if (openings > 1) {
+    throw new Error(
+      `${openings} fenced \`\`\`json openings in agent output; exactly one is required`,
+    );
+  }
+  if (/`{4,}/.test(output)) {
+    throw new Error("a run of four or more backticks in agent output; exactly one is required");
+  }
+  if (/~{3,}/.test(output)) {
+    throw new Error("a tilde fence in agent output; exactly one is required");
+  }
+  const block = /```[ \t]*json[^\n]*\n([\s\S]*?)```/i.exec(output);
+  if (block === null) {
+    throw new Error("the fenced ```json verdict block is not closed");
+  }
+  const rest = output.slice(0, block.index) + output.slice(block.index + block[0].length);
+  if (/```/.test(rest)) {
+    throw new Error("a fence remains outside the ```json verdict block; exactly one is required");
+  }
+  if (/^(?: {4}|\t)[ \t]*[{[]/m.test(rest)) {
+    throw new Error(
+      "an indented code block opens a JSON value outside the verdict block; exactly one is required",
+    );
+  }
   try {
-    return JSON.parse(last[1] ?? "");
+    return JSON.parse(block[1] ?? "");
   } catch (cause) {
     throw new Error(`verdict block is not valid JSON: ${String(cause)}`);
   }
+}
+
+// Control and format characters, the line feed excepted. Measured on this
+// code: the reviewPassId and role mismatch messages below echo a value of the
+// model (the schema asks only for a non-empty string), a failed pass carries
+// the error output of `pi`, and the refusals of parsePlan echo the refused
+// value; an escape sequence would reach the operator's terminal (window title,
+// OSC 52 clipboard), a bidi override or a zero-width character would make a
+// line read other than it is. \p{Cc} is exactly C0, DEL and C1 (the class
+// keeps the line feed out); \p{Cf} holds the format characters.
+const UNSAFE_CONTROLS = /[^\P{Cc}\n]|\p{Cf}/gu;
+
+/**
+ * Text from the plan or the model made safe to print: every control or format
+ * character but the line feed becomes its visible `\uXXXX` (or `\u{XXXXX}`)
+ * spelling, so nothing is lost and nothing is interpreted by a terminal.
+ */
+export function neutralizeControls(text: string): string {
+  return text.replace(UNSAFE_CONTROLS, (char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code > 0xffff ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
+  });
 }
 
 export function validateVerdict(candidate: unknown, job: ReviewJob): string[] {

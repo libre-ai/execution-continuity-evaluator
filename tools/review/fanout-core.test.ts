@@ -191,7 +191,12 @@ describe("buildPrompt", () => {
 });
 
 describe("extractVerdict", () => {
-  test("parses the last fenced json block", () => {
+  test("parses the one fenced json block", () => {
+    const output = ["analysis…", "final:", "```json", '{"verdict": "approve"}', "```"].join("\n");
+    expect(extractVerdict(output)).toEqual({ verdict: "approve" });
+  });
+
+  test("refuses more than one fenced json block: the prompt asks for exactly one", () => {
     const output = [
       "analysis…",
       "```json",
@@ -202,7 +207,42 @@ describe("extractVerdict", () => {
       '{"verdict": "approve"}',
       "```",
     ].join("\n");
-    expect(extractVerdict(output)).toEqual({ verdict: "approve" });
+    expect(() => extractVerdict(output)).toThrow(/2 fenced ```json openings/);
+  });
+
+  test.each([
+    ["a closing fence shared by two blocks", '```json\n{"a": 1}\n```json\n{"b": 2}\n```'],
+    ["an opening spelt in capitals", '```json\n{"a": 1}\n```\n```JSON\n{"b": 2}\n```'],
+    ["a run of four backticks", '````json\n{"a": 1}\n````'],
+    ["a block nested in a four-backtick fence", '````\n```json\n{"b": 2}\n```\n````'],
+    ["a closing fence inside a JSON string", '```json\n{"detail": "see ``` here"}\n```'],
+    ["another code block before the verdict", '```bash\ngit status\n```\n```json\n{"a": 1}\n```'],
+    ["an unclosed verdict block", '```json\n{"a": 1}'],
+    ["a tilde-fenced second block", '```json\n{"a": 1}\n```\n~~~json\n{"b": 2}\n~~~\n'],
+    ["a bare tilde fence", '~~~\nnotes\n~~~\n```json\n{"a": 1}\n```'],
+    ["tildes inside the verdict", '```json\n{"detail": "~~~"}\n```'],
+    ["an indented object after the verdict", '```json\n{"a": 1}\n```\n    {"b": 2}\n'],
+    ["a tab-indented array before the verdict", '\t["b"]\n```json\n{"a": 1}\n```'],
+  ])("refuses %s: a reader could see another verdict than the one recorded", (_name, output) => {
+    expect(() => extractVerdict(output)).toThrow();
+  });
+
+  test("inline single backticks in the prose are not fences", () => {
+    const output = 'ran `git status` and `bun test`\n```json\n{"a": 1}\n```\n';
+    expect(extractVerdict(output)).toEqual({ a: 1 });
+  });
+
+  test("ordinary prose stays accepted: a list, a single tilde, an indented line of text", () => {
+    const output = [
+      "Findings:",
+      "- the parser is strict ~ by design",
+      "    indented note: see the worktree",
+      "\tanother indented line, no brace",
+      "```json",
+      '{"a": 1}',
+      "```",
+    ].join("\n");
+    expect(extractVerdict(output)).toEqual({ a: 1 });
   });
 
   test("throws without a fenced block or with invalid JSON", () => {

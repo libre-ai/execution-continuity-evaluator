@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { LANGGRAPH_ACTIVATION_CONDITIONS } from "./fanout-activation";
+import { LANGGRAPH_ACTIVATION_CONDITIONS, unmetConditions } from "./fanout-activation";
 import {
   disposeFixture,
   type Fixture,
@@ -86,11 +86,15 @@ describe("--runtime=langgraph without --dry-run", () => {
 
     expect(result.exitCode).toBe(2);
     expect(result.stdout).toBe("");
+    const unmet = unmetConditions();
+    expect(unmet.length).toBeGreaterThan(0);
     for (const condition of LANGGRAPH_ACTIVATION_CONDITIONS) {
-      expect(result.stderr).toContain(`- ${condition.id}:`);
-      expect(result.stderr).toContain(condition.workPackage);
+      const named = result.stderr.includes(`- ${condition.id}:`);
+      expect([condition.id, named]).toEqual([condition.id, unmet.includes(condition)]);
     }
-    expect(result.stderr).toContain("5 of 5 activation condition(s) unmet");
+    expect(result.stderr).toContain(
+      `${unmet.length} of ${LANGGRAPH_ACTIVATION_CONDITIONS.length} activation condition(s) unmet`,
+    );
     expect(await piInvocations(f)).toEqual([]);
     expect(existsSync(f.outputDir)).toBe(false);
     expect(await worktreeCount(f)).toBe(1);
@@ -122,12 +126,19 @@ describe("runtime flag parsing", () => {
 });
 
 describe("the default path does not need the package (CA-29)", () => {
-  test("a real campaign runs with every @langchain/* import failing to resolve", async () => {
+  // Until a pass is confined (CA-32) the default driver refuses real passes:
+  // with the package absent a real run reaches that refusal, the same as with
+  // the package present, and no module resolution error.
+  test("a real run with every @langchain/* import failing to resolve reaches the driver's own refusal", async () => {
     const f = await fixture(["alpha"]);
-    const result = await runCli(f, [f.planPath], { packageAbsent: true });
+    const present = await runCli(f, [f.planPath]);
+    const absent = await runCli(f, [f.planPath], { packageAbsent: true });
 
-    expect(result.exitCode).toBe(0);
-    expect(existsSync(join(f.outputDir, "alpha.verdict.json"))).toBe(true);
+    expect(absent.exitCode).toBe(2);
+    expect(absent.stderr).toContain("- pass-read-confined:");
+    expect(absent.stderr).not.toMatch(/Cannot find|@langchain/);
+    expect(absent).toEqual(present);
+    expect(existsSync(join(f.outputDir, "alpha.verdict.json"))).toBe(false);
   });
 
   test("a dry run runs with the package absent", async () => {

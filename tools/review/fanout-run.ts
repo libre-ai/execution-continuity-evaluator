@@ -1,14 +1,23 @@
 import { createHash, getRandomValues, randomUUID } from "node:crypto";
-import { appendFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { constants, writeSync } from "node:fs";
+import { type FileHandle, lstat, mkdir, mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EnvelopeKey } from "@libre-ai/envelope";
 import {
+  type ActivationCondition,
+  ActivationRefusedError,
+  defaultDriverRefusal,
+  LANGGRAPH_ACTIVATION_CONDITIONS,
+} from "./fanout-activation";
+import {
   buildJobs,
+  buildPassArgv,
   buildPrompt,
   dedupeJobs,
   extractVerdict,
   guardEvidence,
+  neutralizeControls,
   parseJournalLines,
   type ReviewEvent,
   type ReviewEventType,
@@ -62,15 +71,69 @@ export async function git(args: string[], cwd = "."): Promise<string> {
   return stdout;
 }
 
+// The orchestrator writes the verdicts and the journal, never through a
+// symbolic link: a link planted in the output directory (or one of its parents
+// inside the repository) would redirect an audit record anywhere the process
+// can write (INV-b, CA-27). Measured on Bun 1.4: O_NOFOLLOW makes an append to
+// a link fail with ELOOP, and O_CREAT|O_EXCL refuses an existing target,
+// dangling link included, with EEXIST.
+const APPEND_NO_LINK =
+  constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW;
+const CREATE_NO_LINK =
+  constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
+
+/**
+ * Throws when a component of `relativePath`, resolved under `root`, exists as a
+ * symbolic link. Components that do not exist yet are not links. `root` itself
+ * is not judged: it is the repository the caller chose.
+ */
+export async function refuseLinks(root: string, relativePath: string): Promise<void> {
+  let current = root;
+  for (const part of relativePath.split("/").filter((segment) => segment.length > 0)) {
+    current = join(current, part);
+    const stat = await lstat(current).catch(() => null);
+    if (stat === null) return;
+    if (stat.isSymbolicLink()) {
+      throw new Error(`refusing to write through a symbolic link: ${relativePath} (at ${part})`);
+    }
+  }
+}
+
+/** The shape of `writeSync(fd, buffer, offset, length)`: returns the bytes written. */
+export type WriteBytes = (fd: number, buffer: Uint8Array, offset: number, length: number) => number;
+
+/**
+ * Write all of `text` to `fd`. A write may be short: the loop writes the rest,
+ * and a write that makes no progress is an error, so a journal line is never
+ * truncated silently. The writes are synchronous, so no other line can land
+ * between two parts of this one. @internal `write` is a parameter for the tests.
+ */
+export function writeWhole(fd: number, text: string, write: WriteBytes = writeSync): void {
+  const bytes = Buffer.from(text, "utf8");
+  let offset = 0;
+  while (offset < bytes.length) {
+    const written = write(fd, bytes, offset, bytes.length - offset);
+    if (!Number.isInteger(written) || written <= 0) {
+      throw new Error(`journal write made no progress at byte ${offset} of ${bytes.length}`);
+    }
+    offset += written;
+  }
+}
+
+/** Where journal lines go: one descriptor held for the whole campaign (openCampaign). */
+export interface JournalSink {
+  append(line: string): Promise<void>;
+}
+
 /**
  * Append-only JSONL journal, written while passes run rather than at the end.
  *
- * One line per event, appended in `a` mode: concurrent passes each write a
- * single short line, which POSIX append keeps atomic at this size. Nothing here
- * buffers — a hung or killed pass is exactly when the journal earns its keep,
- * and it would flush nothing at exit.
+ * One line per event, appended through a descriptor opened with O_APPEND:
+ * concurrent passes each write a single short line, which POSIX append keeps
+ * atomic at this size. Nothing here buffers — a hung or killed pass is exactly
+ * when the journal earns its keep, and it would flush nothing at exit.
  */
-export function journalWriter(path: string, job: ReviewJob): Emit {
+export function journalWriter(sink: JournalSink, job: ReviewJob): Emit {
   return async (type, detail, span) => {
     const now = new Date().toISOString();
     const event: ReviewEvent = {
@@ -81,7 +144,7 @@ export function journalWriter(path: string, job: ReviewJob): Emit {
       ...(span === undefined ? {} : { endedAt: now }),
       ...(detail === undefined ? {} : { detail }),
     };
-    await appendFile(path, `${JSON.stringify(event)}\n`);
+    await sink.append(`${JSON.stringify(event)}\n`);
   };
 }
 
@@ -123,20 +186,12 @@ async function runJob(
     try {
       const prompt = buildPrompt(job, evidenceDigest);
       const agentStartedAt = new Date().toISOString();
-      const proc = Bun.spawn(
-        [
-          piBinary,
-          "--print",
-          "--provider",
-          plan.provider,
-          "--model",
-          plan.model,
-          "--thinking",
-          plan.thinking,
-          prompt,
-        ],
-        { cwd: worktree, stdout: "pipe", stderr: "pipe" },
-      );
+      // Read-only tool profile (INV-a): the reviewer reads untrusted content.
+      const proc = Bun.spawn(buildPassArgv(plan, piBinary, prompt), {
+        cwd: worktree,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
       const [stdout, stderr, exitCode] = await Promise.all([
         new Response(proc.stdout).text(),
         new Response(proc.stderr).text(),
@@ -174,7 +229,16 @@ async function runJob(
                 durationMs: Math.round(performance.now() - start),
               },
             };
-            await Bun.write(job.outputPath, `${JSON.stringify(record, null, 2)}\n`);
+            // The verdict file is new by construction (a recorded one is
+            // skipped, a forced re-run over one is refused): O_EXCL makes that
+            // an invariant of the write, and refuses a link planted in its place.
+            await refuseLinks(repoDir, job.outputPath);
+            const file = await open(join(repoDir, job.outputPath), CREATE_NO_LINK);
+            try {
+              await file.writeFile(`${JSON.stringify(record, null, 2)}\n`);
+            } finally {
+              await file.close();
+            }
             await emit("verdict_recorded", { outputPath: job.outputPath });
           }
         }
@@ -200,7 +264,10 @@ export interface PassExecutor {
 }
 
 export interface OpenOptions {
-  /** Repository the commit lives in; the current directory unless a test says otherwise. */
+  /**
+   * Repository the commit lives in, and the root the plan's outputDir is
+   * resolved against; the current directory unless a test says otherwise.
+   */
   readonly repoDir?: string;
   /** The reviewer binary; `pi`, found on PATH, unless a test names a stand-in. */
   readonly piBinary?: string;
@@ -216,7 +283,12 @@ export async function openCampaign(
 ): Promise<PassExecutor> {
   const repoDir = options.repoDir ?? ".";
   const piBinary = options.piBinary ?? "pi";
-  await mkdir(plan.outputDir, { recursive: true });
+  // outputDir is repository-relative (parsePlan): every write lands under
+  // repoDir, and none goes through a link, before or after the directory exists.
+  const journalRelative = `${plan.outputDir}/events.jsonl`;
+  await refuseLinks(repoDir, journalRelative);
+  await mkdir(join(repoDir, plan.outputDir), { recursive: true });
+  await refuseLinks(repoDir, journalRelative);
   // Ephemeral per-run HMAC key for evidence integrity (K3 intra-run boundary).
   // Held in memory only, never logged or persisted. Identifies this orchestration run
   // and binds all evidence to it; an altered or stripped envelope is offline-verifiable.
@@ -226,22 +298,42 @@ export async function openCampaign(
   };
   const evidenceDigest = await buildEvidenceDigest(plan, envelopeKey, repoDir);
   const worktreeBase = await mkdtemp(join(tmpdir(), "review-fanout-"));
-  const journalPath = join(plan.outputDir, "events.jsonl");
+  const journalPath = join(repoDir, journalRelative);
+  // The journal is opened once, after the last link check, and every event is
+  // appended through that descriptor: a parent of outputDir renamed or
+  // replaced by a link during the campaign no longer redirects the events
+  // that follow, since an open descriptor holds the file, not its path (a
+  // reopen per event put 57 events in a trap, review round 2). O_NOFOLLOW
+  // guards the last component at the one open.
+  //
+  // Each line is one synchronous write(2) on that descriptor: concurrent
+  // passes then never have two writes in flight on one FileHandle, which the
+  // Node contract of FileHandle.write forbids (one CI run on 4949625 saw a
+  // valid pass fail while two passes shared a handle; not reproduced since).
+  let journal: FileHandle;
+  try {
+    await refuseLinks(repoDir, journalRelative);
+    journal = await open(journalPath, APPEND_NO_LINK);
+  } catch (cause) {
+    await rm(worktreeBase, { recursive: true, force: true });
+    throw cause;
+  }
+  const sink: JournalSink = {
+    append: async (line) => {
+      writeWhole(journal.fd, line);
+    },
+  };
   return {
     journalPath,
     runPass: (job) =>
-      runJob(
-        plan,
-        job,
-        worktreeBase,
-        evidenceDigest,
-        journalWriter(journalPath, job),
-        repoDir,
-        piBinary,
-      ),
+      runJob(plan, job, worktreeBase, evidenceDigest, journalWriter(sink, job), repoDir, piBinary),
     dispose: async () => {
-      await rm(worktreeBase, { recursive: true, force: true });
-      await git(["worktree", "prune"], repoDir);
+      try {
+        await journal.close();
+      } finally {
+        await rm(worktreeBase, { recursive: true, force: true });
+        await git(["worktree", "prune"], repoDir);
+      }
     },
   };
 }
@@ -259,25 +351,32 @@ export async function reportJournal(
   results: readonly JobResult[],
   io: CampaignIo = consoleIo,
 ): Promise<void> {
+  // The path comes from the plan, and the rest from a file read back from
+  // disk: neutralised before the terminal.
+  const shownPath = neutralizeControls(journalPath);
   const journal = Bun.file(journalPath);
   if (!(await journal.exists())) {
-    io.error(`journal missing at ${journalPath} — the run produced no replayable trace`);
+    io.error(`journal missing at ${shownPath} — the run produced no replayable trace`);
     return;
   }
   const { events, corrupted } = parseJournalLines(await journal.text());
   for (const entry of corrupted) {
-    io.error(`journal line ${entry.line} unreadable (${entry.error}) — kept, not trusted`);
+    io.error(
+      `journal line ${entry.line} unreadable (${neutralizeControls(entry.error)}) — kept, not trusted`,
+    );
   }
   const replay = replayPassStatuses(events);
-  io.log(`journal ${journalPath} — ${events.length} events across ${replay.length} pass(es)`);
+  io.log(`journal ${shownPath} — ${events.length} events across ${replay.length} pass(es)`);
 
   const observed = new Map(results.map((result) => [result.job.reviewPassId, result.ok]));
   for (const disagreement of reconcileReplay(replay, observed)) {
     io.error(
-      `journal disagrees with the run on ${disagreement.role} (${disagreement.reviewPassId}): ` +
-        `replayed ${disagreement.replayed}, observed ${
-          disagreement.observedOk ? "success" : "fail"
-        } — ${disagreement.reason}`,
+      neutralizeControls(
+        `journal disagrees with the run on ${disagreement.role} (${disagreement.reviewPassId}): ` +
+          `replayed ${disagreement.replayed}, observed ${
+            disagreement.observedOk ? "success" : "fail"
+          } — ${disagreement.reason}`,
+      ),
     );
   }
 }
@@ -286,12 +385,17 @@ export async function reportJournal(
 export function printResults(results: readonly JobResult[], io: CampaignIo = consoleIo): number {
   let failed = 0;
   for (const result of results) {
+    // Role and path come from the plan; errors carry text of the model and of
+    // `pi`: everything printed here is neutralised.
+    const role = neutralizeControls(result.job.role);
     if (result.ok) {
-      io.log(`ok   ${result.job.role} (${result.durationMs} ms) → ${result.job.outputPath}`);
+      io.log(
+        `ok   ${role} (${result.durationMs} ms) → ${neutralizeControls(result.job.outputPath)}`,
+      );
     } else {
       failed += 1;
-      io.error(`FAIL ${result.job.role} (${result.durationMs} ms)`);
-      for (const error of result.errors) io.error(`     ${error}`);
+      io.error(`FAIL ${role} (${result.durationMs} ms)`);
+      for (const error of result.errors) io.error(`     ${neutralizeControls(error)}`);
     }
   }
   if (failed > 0) io.error(`${failed}/${results.length} pass(es) failed`);
@@ -351,7 +455,13 @@ export function announceCampaign(
   planned: PlannedCampaign,
   input: Pick<CampaignInput, "plan" | "dryRun" | "io">,
 ): void {
-  const { io, plan } = input;
+  const { plan } = input;
+  // Every line below carries values of the plan: neutralised whatever policy
+  // screened them upstream, since this is where they reach the terminal.
+  const io: CampaignIo = {
+    log: (line) => input.io.log(neutralizeControls(line)),
+    error: (line) => input.io.error(neutralizeControls(line)),
+  };
   if (planned.collisions.length > 0) {
     io.error(
       "refusing to overwrite recorded verdicts (immutable audit records); archive them first:",
@@ -374,6 +484,22 @@ export function announceCampaign(
   }
 }
 
+/** What the command line ends on: a campaign's outcome, or a driver's refusal of real passes. */
+export type CampaignEnd = CampaignOutcome | "activation-refused";
+
+/**
+ * The exit status of the command line, decided here and nowhere else: 2 when
+ * nothing could run as asked (a driver refused real passes, or a forced
+ * re-run would overwrite a recorded verdict), 1 when at least one pass
+ * failed, 0 otherwise. Usage errors exit 2 before any campaign.
+ */
+export function campaignExitCode(end: CampaignEnd): 0 | 1 | 2 {
+  if (end === "activation-refused") return 2;
+  if (end.collisions.length > 0) return 2;
+  if (end.failed > 0) return 1;
+  return 0;
+}
+
 export function outcomeOf(
   planned: PlannedCampaign,
   results: readonly JobResult[],
@@ -387,9 +513,22 @@ export function outcomeOf(
   };
 }
 
-/** The default driver: bounded-concurrency batches, no framework. */
-export async function runCampaignDirect(input: CampaignInput): Promise<CampaignOutcome> {
+/**
+ * The default driver: bounded-concurrency batches, no framework. It refuses
+ * real passes itself, before anything is printed or opened, while a condition
+ * that binds it is unmet (CA-32); a dry run, an empty plan or a refused
+ * overwrite runs no pass and needs no activation. `conditions` is for the
+ * tests that pin real behaviour; production callers leave it to the table.
+ */
+export async function runCampaignDirect(
+  input: CampaignInput,
+  conditions: readonly ActivationCondition[] = LANGGRAPH_ACTIVATION_CONDITIONS,
+): Promise<CampaignOutcome> {
   const planned = planCampaign(input);
+  if (shouldExecute(planned, input.dryRun)) {
+    const refusal = defaultDriverRefusal(conditions);
+    if (refusal !== null) throw new ActivationRefusedError(refusal);
+  }
   announceCampaign(planned, input);
   if (!shouldExecute(planned, input.dryRun)) return outcomeOf(planned, []);
 

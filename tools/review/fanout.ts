@@ -1,14 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
+  ActivationRefusedError,
   activationRefusal,
   assertNoPublisherTelemetry,
   LANGGRAPH_ACTIVATION_CONDITIONS,
 } from "./fanout-activation";
-import { parsePlan, resolveReviewProtocol } from "./fanout-core";
+import { neutralizeControls, parsePlan, resolveReviewProtocol } from "./fanout-core";
 import {
   type CampaignInput,
   type CampaignOutcome,
+  campaignExitCode,
   consoleIo,
   git,
   openCampaign,
@@ -28,8 +30,10 @@ import {
 // `direct` (the default) is the driver that needs no package. `langgraph`
 // drives the same campaign through a LangGraph graph (fanout-graph.ts, loaded
 // only when asked for): it answers `--dry-run`, and refuses real passes until
-// its activation conditions hold (fanout-activation.ts). Either way the plan,
-// the verdicts and the journal are the same.
+// its activation conditions hold (fanout-activation.ts). The default driver
+// refuses real passes too until a pass is confined to its worktree (CA-32):
+// both refusals exit 2. Either way the plan, the verdicts and the journal are
+// the same.
 
 const USAGE =
   "usage: bun tools/review/fanout.ts <plan.json> [--dry-run] [--force] [--runtime=direct|langgraph]";
@@ -53,8 +57,10 @@ async function loadGraphDriver(): Promise<(input: CampaignInput) => Promise<Camp
     const { runCampaignGraph } = await import("./fanout-graph");
     return runCampaignGraph;
   } catch (cause) {
+    // The cause may quote paths and environment variable names.
+    const reason = neutralizeControls(cause instanceof Error ? cause.message : String(cause));
     console.error(
-      `the LangGraph runtime is unavailable: ${cause instanceof Error ? cause.message : String(cause)}\n` +
+      `the LangGraph runtime is unavailable: ${reason}\n` +
         "the default path needs no package: omit --runtime",
     );
     process.exit(2);
@@ -75,7 +81,7 @@ async function main(): Promise<void> {
     const refusal = activationRefusal(LANGGRAPH_ACTIVATION_CONDITIONS);
     if (refusal !== null) {
       console.error(refusal);
-      process.exit(2);
+      process.exit(campaignExitCode("activation-refused"));
     }
   }
   const protocol = resolveReviewProtocol(existsSync);
@@ -87,20 +93,34 @@ async function main(): Promise<void> {
   const plan = parsePlan(await Bun.file(planPath).json());
   await git(["cat-file", "-e", `${plan.commit}^{commit}`]);
 
-  const drive = runtime === "langgraph" ? await loadGraphDriver() : runCampaignDirect;
-  const outcome = await drive({
-    plan,
-    force,
-    dryRun,
-    makeId: () => `rp-${plan.commit.slice(0, 7)}-${randomUUID()}`,
-    hasRecordedVerdict: (job) => existsSync(job.outputPath),
-    open: (campaignPlan) => openCampaign(campaignPlan),
-    verify: (journalPath, results) => reportJournal(journalPath, results, consoleIo),
-    io: consoleIo,
-  });
+  const drive =
+    runtime === "langgraph"
+      ? await loadGraphDriver()
+      : (input: CampaignInput) => runCampaignDirect(input);
+  let outcome: CampaignOutcome;
+  try {
+    outcome = await drive({
+      plan,
+      force,
+      dryRun,
+      makeId: () => `rp-${plan.commit.slice(0, 7)}-${randomUUID()}`,
+      hasRecordedVerdict: (job) => existsSync(job.outputPath),
+      open: (campaignPlan) => openCampaign(campaignPlan),
+      verify: (journalPath, results) => reportJournal(journalPath, results, consoleIo),
+      io: consoleIo,
+    });
+  } catch (cause) {
+    // A driver that refuses real passes (activation table) says why; nothing ran.
+    if (cause instanceof ActivationRefusedError) {
+      console.error(cause.message);
+      process.exit(campaignExitCode("activation-refused"));
+    }
+    throw cause;
+  }
 
-  if (outcome.collisions.length > 0) process.exit(2);
-  if (printResults(outcome.results, consoleIo) > 0) process.exit(1);
+  printResults(outcome.results, consoleIo);
+  const code = campaignExitCode(outcome);
+  if (code !== 0) process.exit(code);
 }
 
 await main();

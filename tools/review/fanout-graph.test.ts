@@ -1,4 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import {
+  type ActivationCondition,
+  ActivationRefusedError,
+  LANGGRAPH_ACTIVATION_CONDITIONS,
+} from "./fanout-activation";
 import type { ReviewJob } from "./fanout-core";
 import { parsePlan } from "./fanout-core";
 import { ALL_CONDITIONS_MET_FOR_TESTS } from "./fanout-fixtures";
@@ -140,7 +145,7 @@ async function both(
 ) {
   const direct = harness(roles, concurrency, options);
   const graph = harness(roles, concurrency, options);
-  const directOutcome = await runCampaignDirect(direct.input);
+  const directOutcome = await runCampaignDirect(direct.input, ALL_CONDITIONS_MET_FOR_TESTS);
   const graphOutcome = await runCampaignGraph(graph.input, ALL_CONDITIONS_MET_FOR_TESTS);
   return { direct, graph, directOutcome, graphOutcome };
 }
@@ -199,7 +204,9 @@ describe("graph and direct drivers agree", () => {
     const options = { script: { rejectRole: "b" } };
     const direct = harness(["a", "b", "c"], 2, options);
     const graph = harness(["a", "b", "c"], 2, options);
-    await expect(runCampaignDirect(direct.input)).rejects.toThrow("pass b blew up");
+    await expect(runCampaignDirect(direct.input, ALL_CONDITIONS_MET_FOR_TESTS)).rejects.toThrow(
+      "pass b blew up",
+    );
     await expect(runCampaignGraph(graph.input, ALL_CONDITIONS_MET_FOR_TESTS)).rejects.toThrow(
       "pass b blew up",
     );
@@ -349,6 +356,64 @@ describe("activation is enforced by the driver itself", () => {
     const h = harness(["a", "b"], 2, { dryRun: true });
     const outcome = await runCampaignGraph(h.input);
     expect(outcome.results).toEqual([]);
+    expect([h.opened(), h.starts.length]).toEqual([0, 0]);
+  });
+});
+
+// CA-32: the sixth condition binds the default driver too, in the driver and
+// not only on the command line. The table where only that condition is met
+// shows which conditions bind which driver.
+const ONLY_CONFINEMENT_MET: readonly ActivationCondition[] = LANGGRAPH_ACTIVATION_CONDITIONS.map(
+  (condition) =>
+    condition.id === "pass-read-confined"
+      ? {
+          ...condition,
+          satisfied: true,
+          evidence: "tools/review/vectors/inv-a-read-only-passes.test.ts",
+        }
+      : { ...condition, satisfied: false, evidence: null },
+);
+
+describe("the default driver refuses real passes by itself while a pass is not confined", () => {
+  test("refused before anything is printed or opened, naming pass-read-confined", async () => {
+    const h = harness(["a", "b"], 2);
+    const refusal = runCampaignDirect(h.input);
+    await expect(refusal).rejects.toBeInstanceOf(ActivationRefusedError);
+    await expect(runCampaignDirect(h.input)).rejects.toThrow(
+      "- pass-read-confined: a review pass cannot read outside its detached worktree",
+    );
+    expect([h.opened(), h.starts.length, h.disposed(), h.verified()]).toEqual([0, 0, 0, 0]);
+    expect(h.lines).toEqual([]);
+  });
+
+  test("a dry run, an empty run and a refused overwrite run no pass and need no activation", async () => {
+    const dry = harness(["a", "b"], 2, { dryRun: true });
+    expect((await runCampaignDirect(dry.input)).results).toEqual([]);
+    const recorded = harness(["a"], 1, { recorded: new Set(["a"]) });
+    expect((await runCampaignDirect(recorded.input)).skipped.map((job) => job.role)).toEqual(["a"]);
+    const forced = harness(["a"], 1, { force: true, recorded: new Set(["a"]) });
+    expect((await runCampaignDirect(forced.input)).collisions.map((job) => job.role)).toEqual([
+      "a",
+    ]);
+    for (const h of [dry, recorded, forced]) expect([h.opened(), h.starts.length]).toEqual([0, 0]);
+  });
+
+  test("only the confinement binds it: with that condition met it runs, the graph driver still refuses", async () => {
+    const direct = harness(["a", "b"], 2);
+    const outcome = await runCampaignDirect(direct.input, ONLY_CONFINEMENT_MET);
+    expect([outcome.failed, direct.starts.length]).toEqual([0, 2]);
+    const graph = harness(["a", "b"], 2);
+    await expect(runCampaignGraph(graph.input, ONLY_CONFINEMENT_MET)).rejects.toThrow(
+      "5 of 6 activation condition(s) unmet",
+    );
+    expect(graph.starts).toEqual([]);
+  });
+
+  test("a table other than the canonical one is refused, before anything opens", async () => {
+    const h = harness(["a"], 1);
+    const partial = ALL_CONDITIONS_MET_FOR_TESTS.slice(0, -1);
+    await expect(runCampaignDirect(h.input, partial)).rejects.toThrow("activation table");
+    await expect(runCampaignDirect(h.input, [])).rejects.toThrow("activation table");
     expect([h.opened(), h.starts.length]).toEqual([0, 0]);
   });
 });

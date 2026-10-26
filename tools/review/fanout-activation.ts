@@ -1,5 +1,5 @@
-import { existsSync, realpathSync } from "node:fs";
-import { isAbsolute, resolve, sep } from "node:path";
+import { lstatSync, realpathSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 // Conditions under which the LangGraph runtime may run REAL review passes.
 //
@@ -9,8 +9,15 @@ import { isAbsolute, resolve, sep } from "node:path";
 // their red vectors pass (ADR-0045 decision 4), and ADR-0058 section 3
 // condition 4 adds the egress vector: "a harness that does not produce this
 // refusal does not activate the worker". Work package WP-2 ships the runtime;
-// WP-3 and WP-4 ship the proofs. Until they do, the LangGraph path answers
-// `--dry-run` and refuses everything else.
+// WP-3 ships the proofs of INV-a to INV-c (tools/review/vectors). The
+// conditions still unmet each name their own package: WP-4 the egress proof
+// (telemetry-egress-refused) and the confinement proof (pass-read-confined),
+// WP-7 the adaptive-attack proof (adaptive-attacks), since the owner split WP-4
+// on 2026-10-26. Until every condition holds, the LangGraph path answers
+// `--dry-run` and refuses everything else. The sixth
+// condition (owner decision of 2026-10-24, CA-32) binds the default path too:
+// it refuses real passes until a pass cannot read outside its worktree
+// (`defaultDriverRefusal`, applied by `runCampaignDirect` itself).
 //
 // The table is code, not configuration: nothing in the environment or on the
 // command line can mark a condition met. A condition flips to `satisfied: true`
@@ -20,16 +27,23 @@ import { isAbsolute, resolve, sep } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 
+// A proof is a test file of the vectors directory, named by its plain
+// repository-relative path: not a directory, not any file that happens to
+// exist (package.json), not a test elsewhere in the tree.
+const PROOF_PATH_PATTERN = /^tools\/review\/vectors\/[A-Za-z0-9][A-Za-z0-9._-]*\.test\.ts$/;
+
 /**
- * True when `path` is repository-relative, exists, and stays under the root
- * once links are followed: a link inside the root to a file outside it is not
- * a proof. @internal `root` is a parameter for the tests only.
+ * True when `path` names a regular test file under tools/review/vectors/ of
+ * the repository: neither a link (a link inside the root to a file elsewhere
+ * is not a proof) nor a directory, and the path resolves to itself.
+ * @internal `root` is a parameter for the tests only.
  */
 export function isProofInRepository(path: string, root: string = REPO_ROOT): boolean {
-  if (isAbsolute(path)) return false;
+  if (!PROOF_PATH_PATTERN.test(path)) return false;
   const resolved = resolve(root, path);
-  if (!existsSync(resolved)) return false;
-  return realpathSync(resolved).startsWith(`${realpathSync(root)}${sep}`);
+  const entry = lstatSync(resolved, { throwIfNoEntry: false });
+  if (entry === undefined || !entry.isFile()) return false;
+  return realpathSync(resolved) === join(realpathSync(root), path);
 }
 
 export interface ActivationCondition {
@@ -43,31 +57,41 @@ export interface ActivationCondition {
   readonly evidence: string | null;
 }
 
-export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = [
+/**
+ * The table, and each condition in it, frozen: no code that imports the
+ * module can mark a condition met or swap a proof at run time; changing the
+ * table is a change of this file, visible in review.
+ */
+function frozenTable(table: ActivationCondition[]): readonly ActivationCondition[] {
+  for (const condition of table) Object.freeze(condition);
+  return Object.freeze(table);
+}
+
+export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = frozenTable([
   {
     id: "inv-a",
     requirement:
       "no untrusted string in front of a model that holds a write, execute or network tool",
     source: "ADR-0045 decision 1 (INV-a), CA-26",
     workPackage: "WP-3",
-    satisfied: false,
-    evidence: null,
+    satisfied: true,
+    evidence: "tools/review/vectors/inv-a-read-only-passes.test.ts",
   },
   {
     id: "inv-b",
     requirement: "provenance by value, policy on every effect argument",
     source: "ADR-0045 decision 1 (INV-b), CA-27",
     workPackage: "WP-3",
-    satisfied: false,
-    evidence: null,
+    satisfied: true,
+    evidence: "tools/review/vectors/inv-b-effect-arguments.test.ts",
   },
   {
     id: "inv-c",
     requirement: "quarantine output with a closed vocabulary",
     source: "ADR-0045 decision 1 (INV-c), CA-28",
     workPackage: "WP-3",
-    satisfied: false,
-    evidence: null,
+    satisfied: true,
+    evidence: "tools/review/vectors/inv-c-closed-vocabulary.test.ts",
   },
   {
     id: "telemetry-egress-refused",
@@ -81,11 +105,47 @@ export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = [
     id: "adaptive-attacks",
     requirement: "adaptive attack suite, utility and attack success rates reported together",
     source: "ADR-0045 consequences (vector 4), CA-31",
+    workPackage: "WP-7",
+    satisfied: false,
+    evidence: null,
+  },
+  {
+    id: "pass-read-confined",
+    requirement: "a review pass cannot read outside its detached worktree, enforced outside pi",
+    source:
+      "owner decision of 2026-10-24 (sixth activation condition, applied to both drivers), CA-32",
     workPackage: "WP-4",
     satisfied: false,
     evidence: null,
   },
-];
+]);
+
+/** Thrown by a driver that refuses real passes; the command line prints it and exits 2. */
+export class ActivationRefusedError extends Error {
+  override readonly name = "ActivationRefusedError";
+}
+
+const CANONICAL_CONDITION_IDS = LANGGRAPH_ACTIVATION_CONDITIONS.map((condition) => condition.id);
+
+/**
+ * Throws unless `conditions` lists exactly the canonical conditions, in order:
+ * an empty or partial table would otherwise have nothing left to refuse.
+ */
+export function assertCanonicalTable(conditions: readonly ActivationCondition[]): void {
+  const ids = conditions.map((condition) => condition.id);
+  if (
+    ids.length !== CANONICAL_CONDITION_IDS.length ||
+    ids.some((id, index) => id !== CANONICAL_CONDITION_IDS[index])
+  ) {
+    throw new ActivationRefusedError(
+      `the activation table must list exactly the conditions of fanout-activation.ts (${CANONICAL_CONDITION_IDS.join(", ")}); got: ${ids.join(", ") || "none"}`,
+    );
+  }
+}
+
+// The default driver loads no package, so the conditions on the package do not
+// bind it; the confinement of a pass does, whichever driver runs it (CA-32).
+const DEFAULT_DRIVER_CONDITION_IDS: readonly string[] = ["pass-read-confined"];
 
 /**
  * A condition counts as met only when it says so AND names a proof that exists
@@ -117,7 +177,30 @@ export function activationRefusal(
       (condition) =>
         `- ${condition.id}: ${condition.requirement} (${condition.source}; delivered by ${condition.workPackage})`,
     ),
-    "--dry-run is available on this runtime; omit --runtime to run the default path",
+    "--dry-run is available on this runtime",
+  ].join("\n");
+}
+
+/**
+ * The refusal message for real passes on the default path, or null when the
+ * conditions that bind it hold. The table must be the canonical one.
+ */
+export function defaultDriverRefusal(
+  conditions: readonly ActivationCondition[] = LANGGRAPH_ACTIVATION_CONDITIONS,
+): string | null {
+  assertCanonicalTable(conditions);
+  const binding = conditions.filter((condition) =>
+    DEFAULT_DRIVER_CONDITION_IDS.includes(condition.id),
+  );
+  const unmet = unmetConditions(binding);
+  if (unmet.length === 0) return null;
+  return [
+    `the default runtime does not run real review passes yet: ${unmet.length} of ${binding.length} activation condition(s) that bind it unmet`,
+    ...unmet.map(
+      (condition) =>
+        `- ${condition.id}: ${condition.requirement} (${condition.source}; delivered by ${condition.workPackage})`,
+    ),
+    "--dry-run is available on this runtime",
   ].join("\n");
 }
 
