@@ -288,6 +288,42 @@ describe("vector 3: exactly one verdict block, or none is recorded", () => {
     expect(campaign.outputFiles).toEqual(["events.jsonl"]);
     held += 1;
   });
+
+  // The rest of the class, from the round-3 cross-check: CommonMark opens a
+  // code block with `~~~` and with an indentation of four spaces, so a reader
+  // sees a second verdict in either.
+  const approve = () => JSON.stringify(verdictWith({}));
+  const reject = () =>
+    JSON.stringify(
+      verdictWith({
+        verdict: "reject",
+        findings: {
+          blocking: [{ title: "x", detail: "y" }],
+          major: [],
+          minor: [],
+          nonBlocking: [],
+        },
+      }),
+    );
+  for (const driver of DRIVERS) {
+    test.each([
+      [
+        "a tilde-fenced second block",
+        () => `\`\`\`json\n${approve()}\n\`\`\`\n~~~json\n${reject()}\n~~~\n`,
+      ],
+      ["an indented second block", () => `\`\`\`json\n${approve()}\n\`\`\`\n\n    ${reject()}\n`],
+    ])(`${driver} driver: %s with the opposite verdict is refused, nothing is recorded`, async (_name, reply) => {
+      started += 1;
+      const campaign = await campaignReplying(driver, reply());
+
+      expect(campaign.outcome.failed).toBe(ROLES.length);
+      for (const result of campaign.outcome.results) {
+        expect(result.errors.join("\n")).toContain("exactly one is required");
+      }
+      expect(campaign.outputFiles).toEqual(["events.jsonl"]);
+      held += 1;
+    });
+  }
 });
 
 // Text written by `pi` or by the model reaches JobResult.errors on two paths:

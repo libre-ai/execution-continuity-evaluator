@@ -382,7 +382,10 @@ export function buildPassArgv(plan: ReviewPlan, piBinary: string, prompt: string
  * so a closing fence shared by two blocks cannot hide the second; any fence
  * left once the verdict block is removed (another code block, a closing fence
  * inside a JSON string); any run of four or more backticks, which re-nests
- * markdown fences.
+ * markdown fences; any run of three or more tildes, anywhere, since CommonMark
+ * opens a code block with `~~~` too; and, once the verdict block is removed,
+ * any indented code line (four spaces or a tab) that starts a JSON object or
+ * array, which a reader sees as a second block. Indented prose stays accepted.
  */
 export function extractVerdict(output: string): unknown {
   const openings = [...output.matchAll(/```[ \t]*json/gi)].length;
@@ -397,6 +400,9 @@ export function extractVerdict(output: string): unknown {
   if (/`{4,}/.test(output)) {
     throw new Error("a run of four or more backticks in agent output; exactly one is required");
   }
+  if (/~{3,}/.test(output)) {
+    throw new Error("a tilde fence in agent output; exactly one is required");
+  }
   const block = /```[ \t]*json[^\n]*\n([\s\S]*?)```/i.exec(output);
   if (block === null) {
     throw new Error("the fenced ```json verdict block is not closed");
@@ -404,6 +410,11 @@ export function extractVerdict(output: string): unknown {
   const rest = output.slice(0, block.index) + output.slice(block.index + block[0].length);
   if (/```/.test(rest)) {
     throw new Error("a fence remains outside the ```json verdict block; exactly one is required");
+  }
+  if (/^(?: {4}|\t)[ \t]*[{[]/m.test(rest)) {
+    throw new Error(
+      "an indented code block opens a JSON value outside the verdict block; exactly one is required",
+    );
   }
   try {
     return JSON.parse(block[1] ?? "");
