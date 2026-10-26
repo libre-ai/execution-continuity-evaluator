@@ -207,7 +207,24 @@ describe("extractVerdict", () => {
       '{"verdict": "approve"}',
       "```",
     ].join("\n");
-    expect(() => extractVerdict(output)).toThrow(/2 fenced ```json blocks/);
+    expect(() => extractVerdict(output)).toThrow(/2 fenced ```json openings/);
+  });
+
+  test.each([
+    ["a closing fence shared by two blocks", '```json\n{"a": 1}\n```json\n{"b": 2}\n```'],
+    ["an opening spelt in capitals", '```json\n{"a": 1}\n```\n```JSON\n{"b": 2}\n```'],
+    ["a run of four backticks", '````json\n{"a": 1}\n````'],
+    ["a block nested in a four-backtick fence", '````\n```json\n{"b": 2}\n```\n````'],
+    ["a closing fence inside a JSON string", '```json\n{"detail": "see ``` here"}\n```'],
+    ["another code block before the verdict", '```bash\ngit status\n```\n```json\n{"a": 1}\n```'],
+    ["an unclosed verdict block", '```json\n{"a": 1}'],
+  ])("refuses %s: a reader could see another verdict than the one recorded", (_name, output) => {
+    expect(() => extractVerdict(output)).toThrow();
+  });
+
+  test("inline single backticks in the prose are not fences", () => {
+    const output = 'ran `git status` and `bun test`\n```json\n{"a": 1}\n```\n';
+    expect(extractVerdict(output)).toEqual({ a: 1 });
   });
 
   test("throws without a fenced block or with invalid JSON", () => {

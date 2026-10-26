@@ -364,23 +364,38 @@ export function buildPassArgv(plan: ReviewPlan, piBinary: string, prompt: string
 }
 
 /**
- * The verdict block of a pass. The prompt asks for exactly one; with two, the
- * block a human reads first and the block recorded could differ, so any count
- * other than one is refused rather than resolved (closed when in doubt).
+ * The verdict block of a pass. The prompt asks for exactly one; when a reply
+ * could show a human a second verdict, the block a human reads and the block
+ * recorded could differ, so the reply is refused rather than resolved (closed
+ * when in doubt). Refused: more than one ```json opening, counted on their own
+ * so a closing fence shared by two blocks cannot hide the second; any fence
+ * left once the verdict block is removed (another code block, a closing fence
+ * inside a JSON string); any run of four or more backticks, which re-nests
+ * markdown fences.
  */
 export function extractVerdict(output: string): unknown {
-  const fences = [...output.matchAll(/```json\s*\n([\s\S]*?)```/g)];
-  const only = fences[0];
-  if (only === undefined) {
+  const openings = [...output.matchAll(/```[ \t]*json/gi)].length;
+  if (openings === 0) {
     throw new Error("no fenced ```json verdict block found in agent output");
   }
-  if (fences.length > 1) {
+  if (openings > 1) {
     throw new Error(
-      `${fences.length} fenced \`\`\`json blocks in agent output; exactly one is required`,
+      `${openings} fenced \`\`\`json openings in agent output; exactly one is required`,
     );
   }
+  if (/`{4,}/.test(output)) {
+    throw new Error("a run of four or more backticks in agent output; exactly one is required");
+  }
+  const block = /```[ \t]*json[^\n]*\n([\s\S]*?)```/i.exec(output);
+  if (block === null) {
+    throw new Error("the fenced ```json verdict block is not closed");
+  }
+  const rest = output.slice(0, block.index) + output.slice(block.index + block[0].length);
+  if (/```/.test(rest)) {
+    throw new Error("a fence remains outside the ```json verdict block; exactly one is required");
+  }
   try {
-    return JSON.parse(only[1] ?? "");
+    return JSON.parse(block[1] ?? "");
   } catch (cause) {
     throw new Error(`verdict block is not valid JSON: ${String(cause)}`);
   }

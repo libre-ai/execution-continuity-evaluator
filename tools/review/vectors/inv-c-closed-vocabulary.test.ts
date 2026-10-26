@@ -249,6 +249,38 @@ describe("vector 3: exactly one verdict block, or none is recorded", () => {
     expect(campaign.invocations).toHaveLength(ROLES.length);
     held += 1;
   });
+
+  test.each(
+    DRIVERS,
+  )("%s driver: two blocks sharing one closing fence are refused, the approval is not recorded", async (driver) => {
+    started += 1;
+    // The reply of the round-2 review: one closing fence for two openings.
+    // A lazy match up to the first fence sees one block, the approval, while
+    // a reader also sees the rejection and its blocking finding.
+    const approve = JSON.stringify(verdictWith({}));
+    const reject = JSON.stringify(
+      verdictWith({
+        verdict: "reject",
+        findings: {
+          blocking: [{ title: "x", detail: "y" }],
+          major: [],
+          minor: [],
+          nonBlocking: [],
+        },
+      }),
+    );
+    const campaign = await campaignReplying(
+      driver,
+      `\`\`\`json\n${approve}\n\`\`\`json\n${reject}\n\`\`\``,
+    );
+
+    expect(campaign.outcome.failed).toBe(ROLES.length);
+    for (const result of campaign.outcome.results) {
+      expect(result.errors.join("\n")).toContain("exactly one is required");
+    }
+    expect(campaign.outputFiles).toEqual(["events.jsonl"]);
+    held += 1;
+  });
 });
 
 // Text written by `pi` or by the model reaches JobResult.errors on two paths:
