@@ -99,6 +99,27 @@ export async function refuseLinks(root: string, relativePath: string): Promise<v
   }
 }
 
+/** The shape of `writeSync(fd, buffer, offset, length)`: returns the bytes written. */
+export type WriteBytes = (fd: number, buffer: Uint8Array, offset: number, length: number) => number;
+
+/**
+ * Write all of `text` to `fd`. A write may be short: the loop writes the rest,
+ * and a write that makes no progress is an error, so a journal line is never
+ * truncated silently. The writes are synchronous, so no other line can land
+ * between two parts of this one. @internal `write` is a parameter for the tests.
+ */
+export function writeWhole(fd: number, text: string, write: WriteBytes = writeSync): void {
+  const bytes = Buffer.from(text, "utf8");
+  let offset = 0;
+  while (offset < bytes.length) {
+    const written = write(fd, bytes, offset, bytes.length - offset);
+    if (!Number.isInteger(written) || written <= 0) {
+      throw new Error(`journal write made no progress at byte ${offset} of ${bytes.length}`);
+    }
+    offset += written;
+  }
+}
+
 /** Where journal lines go: one descriptor held for the whole campaign (openCampaign). */
 export interface JournalSink {
   append(line: string): Promise<void>;
@@ -299,7 +320,7 @@ export async function openCampaign(
   }
   const sink: JournalSink = {
     append: async (line) => {
-      writeSync(journal.fd, line);
+      writeWhole(journal.fd, line);
     },
   };
   return {
