@@ -458,6 +458,22 @@ export function announceCampaign(
   }
 }
 
+/** What the command line ends on: a campaign's outcome, or a driver's refusal of real passes. */
+export type CampaignEnd = CampaignOutcome | "activation-refused";
+
+/**
+ * The exit status of the command line, decided here and nowhere else: 2 when
+ * nothing could run as asked (a driver refused real passes, or a forced
+ * re-run would overwrite a recorded verdict), 1 when at least one pass
+ * failed, 0 otherwise. Usage errors exit 2 before any campaign.
+ */
+export function campaignExitCode(end: CampaignEnd): 0 | 1 | 2 {
+  if (end === "activation-refused") return 2;
+  if (end.collisions.length > 0) return 2;
+  if (end.failed > 0) return 1;
+  return 0;
+}
+
 export function outcomeOf(
   planned: PlannedCampaign,
   results: readonly JobResult[],

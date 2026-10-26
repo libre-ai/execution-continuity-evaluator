@@ -10,6 +10,7 @@ import { neutralizeControls, parsePlan, resolveReviewProtocol } from "./fanout-c
 import {
   type CampaignInput,
   type CampaignOutcome,
+  campaignExitCode,
   consoleIo,
   git,
   openCampaign,
@@ -80,7 +81,7 @@ async function main(): Promise<void> {
     const refusal = activationRefusal(LANGGRAPH_ACTIVATION_CONDITIONS);
     if (refusal !== null) {
       console.error(refusal);
-      process.exit(2);
+      process.exit(campaignExitCode("activation-refused"));
     }
   }
   const protocol = resolveReviewProtocol(existsSync);
@@ -112,13 +113,14 @@ async function main(): Promise<void> {
     // A driver that refuses real passes (activation table) says why; nothing ran.
     if (cause instanceof ActivationRefusedError) {
       console.error(cause.message);
-      process.exit(2);
+      process.exit(campaignExitCode("activation-refused"));
     }
     throw cause;
   }
 
-  if (outcome.collisions.length > 0) process.exit(2);
-  if (printResults(outcome.results, consoleIo) > 0) process.exit(1);
+  printResults(outcome.results, consoleIo);
+  const code = campaignExitCode(outcome);
+  if (code !== 0) process.exit(code);
 }
 
 await main();

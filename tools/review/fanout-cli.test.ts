@@ -14,7 +14,7 @@ import {
   setFakePiMode,
   worktreeCount,
 } from "./fanout-fixtures";
-import { printResults } from "./fanout-run";
+import { type CampaignOutcome, campaignExitCode, printResults } from "./fanout-run";
 
 // The observable contract of `fanout.ts` (EF-10): same plan in, same verdicts,
 // same append-only journal, worktrees removed in `finally`. These tests run the
@@ -198,5 +198,53 @@ describe("the default driver with real effects, printed as the command line prin
     const f = await fixture(["alpha"]);
     await runRealCampaign(f, "direct", "verdicts");
     expect(await fixtureGit(f.dir, ["status", "--porcelain"])).toBe("");
+  });
+});
+
+// The exit status is decided by campaignExitCode alone, and main applies it:
+// pinned without a real pass, since the command line refuses them (CA-32).
+describe("the exit code policy of the command line", () => {
+  const job = {
+    reviewPassId: "rp-1",
+    subject: "s",
+    commit: "f".repeat(40),
+    role: "alpha",
+    mode: "specialized-role",
+    outputPath: "out/alpha.verdict.json",
+  } as const;
+  const ok = { job, ok: true, errors: [], durationMs: 1 };
+  const ko = { job, ok: false, errors: ["pi exited 1: x"], durationMs: 1 };
+  const outcome = (fields: Partial<CampaignOutcome>): CampaignOutcome => ({
+    run: [job],
+    skipped: [],
+    collisions: [],
+    results: [ok],
+    failed: 0,
+    ...fields,
+  });
+
+  test.each([
+    ["every pass succeeded", outcome({}), 0],
+    ["nothing to run", outcome({ run: [], results: [] }), 0],
+    ["one pass failed", outcome({ results: [ok, ko], failed: 1 }), 1],
+    ["every pass failed", outcome({ results: [ko], failed: 1 }), 1],
+    ["a forced re-run collides", outcome({ run: [], results: [], collisions: [job] }), 2],
+    ["a collision and a failure", outcome({ collisions: [job], results: [ko], failed: 1 }), 2],
+    ["a driver refused real passes", "activation-refused", 2],
+  ] as const)("%s: the exit code the policy gives", (_name, end, code) => {
+    expect(campaignExitCode(end)).toBe(code);
+  });
+
+  test("main exits through the policy, and only through it, once a campaign ends", async () => {
+    const cli = await Bun.file(join(import.meta.dir, "fanout.ts")).text();
+    const lines = cli.split("\n");
+    expect(lines.filter((line) => line.includes("campaignExitCode(outcome)"))).toHaveLength(1);
+    expect(
+      lines.filter((line) => line.includes('campaignExitCode("activation-refused")')),
+    ).toHaveLength(2);
+    expect(
+      lines.filter((line) => /if \(code !== 0\) process\.exit\(code\)/.test(line)),
+    ).toHaveLength(1);
+    expect(lines.filter((line) => /process\.exit\(1\)/.test(line))).toEqual([]);
   });
 });
