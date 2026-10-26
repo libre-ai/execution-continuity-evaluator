@@ -107,6 +107,24 @@ describe("the default path does not load the package", () => {
     }
   });
 
+  // CA-32: the default driver applies the activation table itself, and the
+  // command line hands neither driver a table of its own.
+  test("the default driver takes its refusal from fanout-activation.ts, and fanout.ts passes no table", async () => {
+    const run = await read(join(REVIEW_DIR, "fanout-run.ts"));
+    expect(grepCount(run, /from "\.\/fanout-activation"/)).toBe(1);
+    expect(grepCount(run, /defaultDriverRefusal\(conditions\)/)).toBe(1);
+    expect(
+      grepCount(
+        run,
+        /conditions: readonly ActivationCondition\[\] = LANGGRAPH_ACTIVATION_CONDITIONS/,
+      ),
+    ).toBe(1);
+    const cli = await read(join(REVIEW_DIR, "fanout.ts"));
+    expect(grepCount(cli, /runCampaignDirect\(input\)/)).toBe(1);
+    expect(grepCount(cli, /runCampaignDirect\([^)]*,/)).toBe(0);
+    expect(grepCount(cli, /satisfied|ALL_CONDITIONS_MET_FOR_TESTS/)).toBe(0);
+  });
+
   test("no other orchestrator source imports the graph driver", async () => {
     for (const name of orchestratorSources()) {
       if (name === "fanout.ts" || name === "fanout-graph.ts") continue;

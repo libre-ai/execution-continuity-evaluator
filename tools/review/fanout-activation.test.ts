@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import {
   type ActivationCondition,
+  ActivationRefusedError,
   activationRefusal,
   assertNoPublisherTelemetry,
+  defaultDriverRefusal,
   isProofInRepository,
   LANGGRAPH_ACTIVATION_CONDITIONS,
   publisherTelemetryVariables,
@@ -27,13 +29,50 @@ const condition = (overrides: Partial<ActivationCondition>): ActivationCondition
 });
 
 describe("activation conditions", () => {
-  test("the two conditions of WP-4 are still unmet, so the refusal still stands", () => {
+  test("the three conditions of WP-4 are still unmet, so the refusal still stands", () => {
     expect(unmetConditions().map((c) => `${c.id}:${c.workPackage}`)).toEqual([
       "telemetry-egress-refused:WP-4",
       "adaptive-attacks:WP-4",
+      "pass-read-confined:WP-4",
     ]);
-    expect(LANGGRAPH_ACTIVATION_CONDITIONS).toHaveLength(5);
+    expect(LANGGRAPH_ACTIVATION_CONDITIONS).toHaveLength(6);
     expect(activationRefusal()).not.toBeNull();
+  });
+
+  test("the sixth condition is the owner's decision of 2026-10-24, citing CA-32, unmet", () => {
+    const sixth = LANGGRAPH_ACTIVATION_CONDITIONS[5];
+    expect(sixth).toEqual({
+      id: "pass-read-confined",
+      requirement: "a review pass cannot read outside its detached worktree, enforced outside pi",
+      source:
+        "owner decision of 2026-10-24 (sixth activation condition, applied to both drivers), CA-32",
+      workPackage: "WP-4",
+      satisfied: false,
+      evidence: null,
+    });
+  });
+
+  test("the default path is refused by the sixth condition alone, and says so", () => {
+    const message = defaultDriverRefusal() ?? "";
+    expect(message).toContain("the default runtime does not run real review passes yet");
+    expect(message).toContain("1 of 1 activation condition(s) that bind it unmet");
+    expect(message).toContain("- pass-read-confined:");
+    expect(message).not.toContain("telemetry-egress-refused");
+    expect(message).toContain("--dry-run is available on this runtime");
+    const confined = LANGGRAPH_ACTIVATION_CONDITIONS.map((c) =>
+      c.id === "pass-read-confined"
+        ? { ...c, satisfied: true, evidence: "tools/review/vectors/inv-a-read-only-passes.test.ts" }
+        : c,
+    );
+    expect(defaultDriverRefusal(confined)).toBeNull();
+    expect(activationRefusal(confined)).not.toBeNull();
+  });
+
+  test("the default path refuses a table other than the canonical one", () => {
+    expect(() => defaultDriverRefusal([])).toThrow(ActivationRefusedError);
+    expect(() => defaultDriverRefusal(LANGGRAPH_ACTIVATION_CONDITIONS.slice(0, 5))).toThrow(
+      "activation table",
+    );
   });
 
   test("INV-a to INV-c are met, each by its vector in tools/review/vectors", () => {
@@ -154,10 +193,11 @@ describe("activation conditions", () => {
 
   test("the refusal names each unmet condition with its source and its work package", () => {
     const message = activationRefusal() ?? "";
-    expect(message).toContain("2 of 5 activation condition(s) unmet");
+    expect(message).toContain("3 of 6 activation condition(s) unmet");
     expect(message).not.toContain("INV-a");
     expect(message).toContain("ADR-0058 section 3 condition 4, CA-22; delivered by WP-4");
     expect(message).toContain("ADR-0045 consequences (vector 4), CA-31; delivered by WP-4");
+    expect(message).toContain("- pass-read-confined:");
     expect(message).toContain("--dry-run is available on this runtime");
   });
 });

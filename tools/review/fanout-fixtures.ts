@@ -344,8 +344,9 @@ export interface RealCampaign {
 /**
  * Run the fixture's plan through one driver with every real effect: git
  * worktrees, the stand-in `pi` named by path, the journal and the verdict
- * files. The graph driver gets the table marked met, as in
- * fanout-graph-real.test.ts: what is pinned is its behaviour, not its activation.
+ * files. Both drivers get the table marked met, as in
+ * fanout-graph-real.test.ts: what is pinned is their behaviour, not their
+ * activation.
  */
 export async function runRealCampaign(
   fixture: Fixture,
@@ -381,7 +382,7 @@ export async function runRealCampaign(
   };
   const outcome =
     driver === "direct"
-      ? await runCampaignDirect(input)
+      ? await runCampaignDirect(input, ALL_CONDITIONS_MET_FOR_TESTS)
       : await runCampaignGraph(input, ALL_CONDITIONS_MET_FOR_TESTS);
   const journalPath = join(outputDir, "events.jsonl");
   const journalText = existsSync(journalPath) ? await Bun.file(journalPath).text() : "";

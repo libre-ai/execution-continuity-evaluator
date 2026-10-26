@@ -10,8 +10,11 @@ import { join, resolve } from "node:path";
 // condition 4 adds the egress vector: "a harness that does not produce this
 // refusal does not activate the worker". Work package WP-2 ships the runtime;
 // WP-3 ships the proofs of INV-a to INV-c (tools/review/vectors), WP-4 the
-// egress and adaptive-attack proofs. Until every condition holds, the LangGraph
-// path answers `--dry-run` and refuses everything else.
+// egress, adaptive-attack and confinement proofs. Until every condition holds,
+// the LangGraph path answers `--dry-run` and refuses everything else. The sixth
+// condition (owner decision of 2026-10-24, CA-32) binds the default path too:
+// it refuses real passes until a pass cannot read outside its worktree
+// (`defaultDriverRefusal`, applied by `runCampaignDirect` itself).
 //
 // The table is code, not configuration: nothing in the environment or on the
 // command line can mark a condition met. A condition flips to `satisfied: true`
@@ -103,7 +106,43 @@ export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = f
     satisfied: false,
     evidence: null,
   },
+  {
+    id: "pass-read-confined",
+    requirement: "a review pass cannot read outside its detached worktree, enforced outside pi",
+    source:
+      "owner decision of 2026-10-24 (sixth activation condition, applied to both drivers), CA-32",
+    workPackage: "WP-4",
+    satisfied: false,
+    evidence: null,
+  },
 ]);
+
+/** Thrown by a driver that refuses real passes; the command line prints it and exits 2. */
+export class ActivationRefusedError extends Error {
+  override readonly name = "ActivationRefusedError";
+}
+
+const CANONICAL_CONDITION_IDS = LANGGRAPH_ACTIVATION_CONDITIONS.map((condition) => condition.id);
+
+/**
+ * Throws unless `conditions` lists exactly the canonical conditions, in order:
+ * an empty or partial table would otherwise have nothing left to refuse.
+ */
+export function assertCanonicalTable(conditions: readonly ActivationCondition[]): void {
+  const ids = conditions.map((condition) => condition.id);
+  if (
+    ids.length !== CANONICAL_CONDITION_IDS.length ||
+    ids.some((id, index) => id !== CANONICAL_CONDITION_IDS[index])
+  ) {
+    throw new ActivationRefusedError(
+      `the activation table must list exactly the conditions of fanout-activation.ts (${CANONICAL_CONDITION_IDS.join(", ")}); got: ${ids.join(", ") || "none"}`,
+    );
+  }
+}
+
+// The default driver loads no package, so the conditions on the package do not
+// bind it; the confinement of a pass does, whichever driver runs it (CA-32).
+const DEFAULT_DRIVER_CONDITION_IDS: readonly string[] = ["pass-read-confined"];
 
 /**
  * A condition counts as met only when it says so AND names a proof that exists
@@ -135,7 +174,30 @@ export function activationRefusal(
       (condition) =>
         `- ${condition.id}: ${condition.requirement} (${condition.source}; delivered by ${condition.workPackage})`,
     ),
-    "--dry-run is available on this runtime; omit --runtime to run the default path",
+    "--dry-run is available on this runtime",
+  ].join("\n");
+}
+
+/**
+ * The refusal message for real passes on the default path, or null when the
+ * conditions that bind it hold. The table must be the canonical one.
+ */
+export function defaultDriverRefusal(
+  conditions: readonly ActivationCondition[] = LANGGRAPH_ACTIVATION_CONDITIONS,
+): string | null {
+  assertCanonicalTable(conditions);
+  const binding = conditions.filter((condition) =>
+    DEFAULT_DRIVER_CONDITION_IDS.includes(condition.id),
+  );
+  const unmet = unmetConditions(binding);
+  if (unmet.length === 0) return null;
+  return [
+    `the default runtime does not run real review passes yet: ${unmet.length} of ${binding.length} activation condition(s) that bind it unmet`,
+    ...unmet.map(
+      (condition) =>
+        `- ${condition.id}: ${condition.requirement} (${condition.source}; delivered by ${condition.workPackage})`,
+    ),
+    "--dry-run is available on this runtime",
   ].join("\n");
 }
 

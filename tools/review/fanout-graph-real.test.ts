@@ -21,10 +21,11 @@ import {
 } from "./fanout-run";
 
 // The two drivers, with the real effects (git worktrees, a stand-in `pi`, the
-// journal, the verdict files) instead of scripted executors. The graph driver
-// refuses real passes until its activation conditions hold (fanout-activation.ts);
-// these tests hand it a table marked met, so its behaviour is pinned in the
-// meantime and activating it changes a condition and nothing else.
+// journal, the verdict files) instead of scripted executors. Both drivers
+// refuse real passes until the conditions that bind them hold
+// (fanout-activation.ts); these tests hand them a table marked met, so their
+// behaviour is pinned in the meantime and activating them changes a condition
+// and nothing else.
 
 // Each test runs two campaigns with real worktrees and a child process per pass.
 setDefaultTimeout(30000);
@@ -120,7 +121,12 @@ async function journalOf(outputDir: string): Promise<Run["journal"]> {
 async function bothDrivers(roles: readonly string[], piMode: string) {
   const fixture = await makeFixture(roles);
   fixtures.push(fixture);
-  const direct = await drive(fixture, runCampaignDirect, "direct", piMode);
+  const direct = await drive(
+    fixture,
+    (input) => runCampaignDirect(input, ALL_CONDITIONS_MET_FOR_TESTS),
+    "direct",
+    piMode,
+  );
   const graph = await drive(
     fixture,
     (input) => runCampaignGraph(input, ALL_CONDITIONS_MET_FOR_TESTS),

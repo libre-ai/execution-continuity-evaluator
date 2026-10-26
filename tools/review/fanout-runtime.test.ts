@@ -126,12 +126,19 @@ describe("runtime flag parsing", () => {
 });
 
 describe("the default path does not need the package (CA-29)", () => {
-  test("a real campaign runs with every @langchain/* import failing to resolve", async () => {
+  // Until a pass is confined (CA-32) the default driver refuses real passes:
+  // with the package absent a real run reaches that refusal, the same as with
+  // the package present, and no module resolution error.
+  test("a real run with every @langchain/* import failing to resolve reaches the driver's own refusal", async () => {
     const f = await fixture(["alpha"]);
-    const result = await runCli(f, [f.planPath], { packageAbsent: true });
+    const present = await runCli(f, [f.planPath]);
+    const absent = await runCli(f, [f.planPath], { packageAbsent: true });
 
-    expect(result.exitCode).toBe(0);
-    expect(existsSync(join(f.outputDir, "alpha.verdict.json"))).toBe(true);
+    expect(absent.exitCode).toBe(2);
+    expect(absent.stderr).toContain("- pass-read-confined:");
+    expect(absent.stderr).not.toMatch(/Cannot find|@langchain/);
+    expect(absent).toEqual(present);
+    expect(existsSync(join(f.outputDir, "alpha.verdict.json"))).toBe(false);
   });
 
   test("a dry run runs with the package absent", async () => {

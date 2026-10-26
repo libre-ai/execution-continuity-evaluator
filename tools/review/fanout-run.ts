@@ -5,6 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EnvelopeKey } from "@libre-ai/envelope";
 import {
+  type ActivationCondition,
+  ActivationRefusedError,
+  defaultDriverRefusal,
+  LANGGRAPH_ACTIVATION_CONDITIONS,
+} from "./fanout-activation";
+import {
   buildJobs,
   buildPassArgv,
   buildPrompt,
@@ -428,9 +434,22 @@ export function outcomeOf(
   };
 }
 
-/** The default driver: bounded-concurrency batches, no framework. */
-export async function runCampaignDirect(input: CampaignInput): Promise<CampaignOutcome> {
+/**
+ * The default driver: bounded-concurrency batches, no framework. It refuses
+ * real passes itself, before anything is printed or opened, while a condition
+ * that binds it is unmet (CA-32); a dry run, an empty plan or a refused
+ * overwrite runs no pass and needs no activation. `conditions` is for the
+ * tests that pin real behaviour; production callers leave it to the table.
+ */
+export async function runCampaignDirect(
+  input: CampaignInput,
+  conditions: readonly ActivationCondition[] = LANGGRAPH_ACTIVATION_CONDITIONS,
+): Promise<CampaignOutcome> {
   const planned = planCampaign(input);
+  if (shouldExecute(planned, input.dryRun)) {
+    const refusal = defaultDriverRefusal(conditions);
+    if (refusal !== null) throw new ActivationRefusedError(refusal);
+  }
   announceCampaign(planned, input);
   if (!shouldExecute(planned, input.dryRun)) return outcomeOf(planned, []);
 
