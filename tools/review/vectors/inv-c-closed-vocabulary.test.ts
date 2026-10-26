@@ -190,6 +190,13 @@ describe("vector 3: free text of a valid verdict has no effect on the aggregate"
       commands: [DIRECTIVE],
     });
 
+    // Both replies are valid, so no pass may carry an error; asserted first so
+    // that a failure names the error rather than only the decision it changed.
+    for (const run of [benign, attacked]) {
+      expect(run.outcome.results.map((r) => [r.job.role, r.errors])).toEqual(
+        ROLES.map((role) => [role, []]),
+      );
+    }
     expect(decision(attacked)).toEqual(decision(benign));
     expect(attacked.outcome.failed).toBe(0);
     // The text is in the verdict file, for a human, and nowhere else.

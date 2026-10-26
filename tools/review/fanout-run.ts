@@ -1,5 +1,5 @@
 import { createHash, getRandomValues, randomUUID } from "node:crypto";
-import { constants } from "node:fs";
+import { constants, writeSync } from "node:fs";
 import { type FileHandle, lstat, mkdir, mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -284,6 +284,11 @@ export async function openCampaign(
   // that follow, since an open descriptor holds the file, not its path (a
   // reopen per event put 57 events in a trap, review round 2). O_NOFOLLOW
   // guards the last component at the one open.
+  //
+  // Each line is one synchronous write(2) on that descriptor: concurrent
+  // passes then never have two writes in flight on one FileHandle, which the
+  // Node contract of FileHandle.write forbids (one CI run on 4949625 saw a
+  // valid pass fail while two passes shared a handle; not reproduced since).
   let journal: FileHandle;
   try {
     await refuseLinks(repoDir, journalRelative);
@@ -294,7 +299,7 @@ export async function openCampaign(
   }
   const sink: JournalSink = {
     append: async (line) => {
-      await journal.write(line);
+      writeSync(journal.fd, line);
     },
   };
   return {
