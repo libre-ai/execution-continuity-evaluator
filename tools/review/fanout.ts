@@ -6,7 +6,7 @@ import {
   assertNoPublisherTelemetry,
   LANGGRAPH_ACTIVATION_CONDITIONS,
 } from "./fanout-activation";
-import { parsePlan, resolveReviewProtocol } from "./fanout-core";
+import { neutralizeControls, parsePlan, resolveReviewProtocol } from "./fanout-core";
 import {
   type CampaignInput,
   type CampaignOutcome,
@@ -56,8 +56,10 @@ async function loadGraphDriver(): Promise<(input: CampaignInput) => Promise<Camp
     const { runCampaignGraph } = await import("./fanout-graph");
     return runCampaignGraph;
   } catch (cause) {
+    // The cause may quote paths and environment variable names.
+    const reason = neutralizeControls(cause instanceof Error ? cause.message : String(cause));
     console.error(
-      `the LangGraph runtime is unavailable: ${cause instanceof Error ? cause.message : String(cause)}\n` +
+      `the LangGraph runtime is unavailable: ${reason}\n` +
         "the default path needs no package: omit --runtime",
     );
     process.exit(2);

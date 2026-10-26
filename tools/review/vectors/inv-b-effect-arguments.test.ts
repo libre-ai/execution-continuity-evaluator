@@ -269,6 +269,9 @@ describe("vector 1: effect arguments derive from the plan, under a policy", () =
     ["model", "a C1 control (NEL)", "m\u0085x"],
     ["thinking", "a newline and an option", "high\n--tools"],
     ["thinking", "an escape sequence", "\u001b]0;pwned\u0007"],
+    ["model", "a right-to-left override (Cf)", "m‮del"],
+    ["model", "a zero-width space (Cf)", "m​del"],
+    ["provider", "an Arabic letter mark (Cf)", "p؜x"],
   ])("%s with %s is refused", (field, _name, value) => {
     started += 1;
     expect(() => parsePlan({ ...base, roles: ["security"], [field]: value })).toThrow(

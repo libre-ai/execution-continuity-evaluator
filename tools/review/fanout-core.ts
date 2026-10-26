@@ -42,8 +42,10 @@ const ROLE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 // provider, model and thinking each become the value of a `pi` option. A value
 // that starts with "-" or carries a blank or a control character could be read
 // as another option, or split, by a parser other than pi 1.4.0's: refuse it
-// here rather than rely on that parser (INV-b, CA-27).
-const OPTION_VALUE_PATTERN = /^[^-\s\p{Cc}][^\s\p{Cc}]*$/u;
+// here rather than rely on that parser (INV-b, CA-27). Format characters
+// (\p{Cf}: bidi overrides, zero-width characters) are refused too: they make
+// a value read differently from what it is, and it reaches the terminal.
+const OPTION_VALUE_PATTERN = /^[^-\s\p{Cc}\p{Cf}][^\s\p{Cc}\p{Cf}]*$/u;
 const DEFAULT_CONCURRENCY = 5;
 
 // Verdict envelope schema. Kept tool-side on purpose: it is promoted to
@@ -119,6 +121,15 @@ export const reviewVerdictSchema = {
 const ajv = new Ajv2020({ allErrors: true });
 const validateAgainstSchema = ajv.compile(reviewVerdictSchema);
 
+/**
+ * A refused plan value as a refusal message shows it. JSON.stringify escapes
+ * C0 but not DEL, C1 or the format characters (a raw CSI, bytes c2 9b, was
+ * measured in a refusal), and the refusal reaches the operator's terminal.
+ */
+function shown(value: string): string {
+  return neutralizeControls(JSON.stringify(value));
+}
+
 export function parsePlan(raw: unknown): ReviewPlan {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error("plan must be a JSON object");
@@ -144,7 +155,7 @@ export function parsePlan(raw: unknown): ReviewPlan {
   for (const role of roles) {
     if (!ROLE_PATTERN.test(role) || role.includes("..")) {
       errors.push(
-        `roles: unsafe role (allowed: [A-Za-z0-9._-], one path segment, no ".."): ${JSON.stringify(role)}`,
+        `roles: unsafe role (allowed: [A-Za-z0-9._-], one path segment, no ".."): ${shown(role)}`,
       );
     }
   }
@@ -165,7 +176,7 @@ export function parsePlan(raw: unknown): ReviewPlan {
   for (const path of evidence) {
     if (!EVIDENCE_PATH_PATTERN.test(path) || path.includes("..")) {
       errors.push(
-        `evidence: unsafe path (allowed: [A-Za-z0-9._/-], repo-relative, no ".."): ${JSON.stringify(path)}`,
+        `evidence: unsafe path (allowed: [A-Za-z0-9._/-], repo-relative, no ".."): ${shown(path)}`,
       );
     }
   }
@@ -191,7 +202,7 @@ export function parsePlan(raw: unknown): ReviewPlan {
   ] as const) {
     if (value.length > 0 && !OPTION_VALUE_PATTERN.test(value)) {
       errors.push(
-        `${name}: unsafe option value (no leading "-", no blank, no control character): ${JSON.stringify(value)}`,
+        `${name}: unsafe option value (no leading "-", no blank, no control or format character): ${shown(value)}`,
       );
     }
   }
@@ -204,7 +215,7 @@ export function parsePlan(raw: unknown): ReviewPlan {
     errors.push("outputDir: non-empty string required");
   } else if (!EVIDENCE_PATH_PATTERN.test(outputDir) || outputDir.includes("..")) {
     errors.push(
-      `outputDir: unsafe path (allowed: [A-Za-z0-9._/-], repo-relative, no ".."): ${JSON.stringify(outputDir)}`,
+      `outputDir: unsafe path (allowed: [A-Za-z0-9._/-], repo-relative, no ".."): ${shown(outputDir)}`,
     );
   }
 
@@ -401,25 +412,26 @@ export function extractVerdict(output: string): unknown {
   }
 }
 
-// C0 controls but the line feed, DEL, and C1 controls. Measured on this code:
-// the reviewPassId and role mismatch messages below echo a value of the model
-// (the schema asks only for a non-empty string), and a failed pass carries the
-// error output of `pi`; an escape sequence in either would reach the operator's
-// terminal (window title, OSC 52 clipboard). The mismatch messages for mode and
-// commitSha, and the schema messages, carry closed values only.
-// \p{Cc} is exactly C0, DEL and C1; the class keeps the line feed out of it.
-const UNSAFE_CONTROLS = /[^\P{Cc}\n]/gu;
+// Control and format characters, the line feed excepted. Measured on this
+// code: the reviewPassId and role mismatch messages below echo a value of the
+// model (the schema asks only for a non-empty string), a failed pass carries
+// the error output of `pi`, and the refusals of parsePlan echo the refused
+// value; an escape sequence would reach the operator's terminal (window title,
+// OSC 52 clipboard), a bidi override or a zero-width character would make a
+// line read other than it is. \p{Cc} is exactly C0, DEL and C1 (the class
+// keeps the line feed out); \p{Cf} holds the format characters.
+const UNSAFE_CONTROLS = /[^\P{Cc}\n]|\p{Cf}/gu;
 
 /**
- * Untrusted text made safe to print: every control character but the line
- * feed becomes its visible `\uXXXX` spelling, so nothing is lost and nothing
- * is interpreted by a terminal.
+ * Text from the plan or the model made safe to print: every control or format
+ * character but the line feed becomes its visible `\uXXXX` (or `\u{XXXXX}`)
+ * spelling, so nothing is lost and nothing is interpreted by a terminal.
  */
 export function neutralizeControls(text: string): string {
-  return text.replace(
-    UNSAFE_CONTROLS,
-    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
+  return text.replace(UNSAFE_CONTROLS, (char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code > 0xffff ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
+  });
 }
 
 export function validateVerdict(candidate: unknown, job: ReviewJob): string[] {

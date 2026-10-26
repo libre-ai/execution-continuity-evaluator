@@ -325,25 +325,32 @@ export async function reportJournal(
   results: readonly JobResult[],
   io: CampaignIo = consoleIo,
 ): Promise<void> {
+  // The path comes from the plan, and the rest from a file read back from
+  // disk: neutralised before the terminal.
+  const shownPath = neutralizeControls(journalPath);
   const journal = Bun.file(journalPath);
   if (!(await journal.exists())) {
-    io.error(`journal missing at ${journalPath} — the run produced no replayable trace`);
+    io.error(`journal missing at ${shownPath} — the run produced no replayable trace`);
     return;
   }
   const { events, corrupted } = parseJournalLines(await journal.text());
   for (const entry of corrupted) {
-    io.error(`journal line ${entry.line} unreadable (${entry.error}) — kept, not trusted`);
+    io.error(
+      `journal line ${entry.line} unreadable (${neutralizeControls(entry.error)}) — kept, not trusted`,
+    );
   }
   const replay = replayPassStatuses(events);
-  io.log(`journal ${journalPath} — ${events.length} events across ${replay.length} pass(es)`);
+  io.log(`journal ${shownPath} — ${events.length} events across ${replay.length} pass(es)`);
 
   const observed = new Map(results.map((result) => [result.job.reviewPassId, result.ok]));
   for (const disagreement of reconcileReplay(replay, observed)) {
     io.error(
-      `journal disagrees with the run on ${disagreement.role} (${disagreement.reviewPassId}): ` +
-        `replayed ${disagreement.replayed}, observed ${
-          disagreement.observedOk ? "success" : "fail"
-        } — ${disagreement.reason}`,
+      neutralizeControls(
+        `journal disagrees with the run on ${disagreement.role} (${disagreement.reviewPassId}): ` +
+          `replayed ${disagreement.replayed}, observed ${
+            disagreement.observedOk ? "success" : "fail"
+          } — ${disagreement.reason}`,
+      ),
     );
   }
 }
@@ -352,12 +359,16 @@ export async function reportJournal(
 export function printResults(results: readonly JobResult[], io: CampaignIo = consoleIo): number {
   let failed = 0;
   for (const result of results) {
+    // Role and path come from the plan; errors carry text of the model and of
+    // `pi`: everything printed here is neutralised.
+    const role = neutralizeControls(result.job.role);
     if (result.ok) {
-      io.log(`ok   ${result.job.role} (${result.durationMs} ms) → ${result.job.outputPath}`);
+      io.log(
+        `ok   ${role} (${result.durationMs} ms) → ${neutralizeControls(result.job.outputPath)}`,
+      );
     } else {
       failed += 1;
-      io.error(`FAIL ${result.job.role} (${result.durationMs} ms)`);
-      // Errors carry text of the model and of `pi`: neutralised before the terminal.
+      io.error(`FAIL ${role} (${result.durationMs} ms)`);
       for (const error of result.errors) io.error(`     ${neutralizeControls(error)}`);
     }
   }
@@ -418,7 +429,13 @@ export function announceCampaign(
   planned: PlannedCampaign,
   input: Pick<CampaignInput, "plan" | "dryRun" | "io">,
 ): void {
-  const { io, plan } = input;
+  const { plan } = input;
+  // Every line below carries values of the plan: neutralised whatever policy
+  // screened them upstream, since this is where they reach the terminal.
+  const io: CampaignIo = {
+    log: (line) => input.io.log(neutralizeControls(line)),
+    error: (line) => input.io.error(neutralizeControls(line)),
+  };
   if (planned.collisions.length > 0) {
     io.error(
       "refusing to overwrite recorded verdicts (immutable audit records); archive them first:",

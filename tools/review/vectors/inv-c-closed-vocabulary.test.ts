@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { join } from "node:path";
-import { type ReviewJob, validateVerdict } from "../fanout-core";
+import { parsePlan, type ReviewJob, validateVerdict } from "../fanout-core";
 import {
   DRIVERS,
   type DriverName,
@@ -11,7 +11,7 @@ import {
   runRealCampaign,
   setFakePiReply,
 } from "../fanout-fixtures";
-import { printResults } from "../fanout-run";
+import { announceCampaign, printResults } from "../fanout-run";
 
 // Vector 3 of ADR-0045 for INV-c (CA-28): output of quarantine with a closed
 // vocabulary. What decides (the aggregation node of the graph driver, the
@@ -324,8 +324,30 @@ const NOISY: [
 function hasRawControl(text: string): boolean {
   return [...text].some((char) => {
     const code = char.codePointAt(0) ?? 0;
-    return (code < 0x20 && code !== 0x0a) || (code >= 0x7f && code <= 0x9f);
+    const control = (code < 0x20 && code !== 0x0a) || (code >= 0x7f && code <= 0x9f);
+    return control || FORMAT_CHARACTERS.has(code);
   });
+}
+
+// Format characters that make a line read other than it is: soft hyphen,
+// Arabic letter mark, Mongolian vowel separator, zero-width characters and
+// directional marks, bidi embeddings and overrides, invisible operators, bidi
+// isolates, byte order mark, interlinear annotation. Listed by code point from
+// the Unicode tables, not taken from the pattern the code under test uses.
+const FORMAT_CHARACTERS = new Set<number>([
+  0x00ad,
+  0x061c,
+  0x180e,
+  ...range(0x200b, 0x200f),
+  ...range(0x202a, 0x202e),
+  ...range(0x2060, 0x2064),
+  ...range(0x2066, 0x206f),
+  0xfeff,
+  ...range(0xfff9, 0xfffb),
+]);
+
+function range(first: number, last: number): number[] {
+  return Array.from({ length: last - first + 1 }, (_, index) => first + index);
 }
 
 describe("vector 3: text of pi and of the model in errors decides nothing", () => {
@@ -367,6 +389,94 @@ describe("vector 3: untrusted text reaches the terminal and the journal inert", 
       expect(hasRawControl(run.journalText)).toBe(false);
       expect(run.journalText).not.toContain("ORCHESTRATOR");
     }
+    held += 1;
+  });
+
+  test.each(
+    DRIVERS,
+  )("%s driver: bidi overrides and zero-width characters in errors are printed visibly", async (driver) => {
+    started += 1;
+    const run = await campaignReplying(
+      driver,
+      block({ reviewPassId: `${FORGED_ID} pass‮ko‬ ​hidden` }),
+    );
+    expect(run.outcome.results.some((r) => hasRawControl(r.errors.join("")))).toBe(true);
+    const terminal = printed(run).lines.join("\n");
+    expect(terminal).toContain("\\u202e");
+    expect(terminal).toContain("\\u200b");
+    expect(hasRawControl(terminal)).toBe(false);
+    held += 1;
+  });
+
+  test.each([
+    ["model", "a C1 CSI", "m\u009b31m"],
+    ["model", "a right-to-left override", "m‮del"],
+    ["roles", "a C1 CSI", ["ok", "r\u009b31m"]],
+    ["outputDir", "a zero-width space", "docs/​reviews"],
+  ])("a refused plan %s with %s is reported inert", (field, _name, value) => {
+    started += 1;
+    const plan = {
+      subject: "s",
+      commit: "d".repeat(40),
+      roles: ["security"],
+      provider: "p",
+      model: "m",
+      outputDir: "out",
+      [field]: value,
+    };
+    let message = "";
+    try {
+      parsePlan(plan);
+    } catch (cause) {
+      message = String(cause);
+    }
+    expect(message).toContain("unsafe");
+    expect(message).toMatch(/\\u(009b|202e|200b)/);
+    expect(hasRawControl(message)).toBe(false);
+    held += 1;
+  });
+
+  test("the campaign announcement prints plan values inert, even ones no policy screened", () => {
+    started += 1;
+    // Built directly, without parsePlan: the announcement is a terminal sink of
+    // its own and must not rely on the policy upstream.
+    const plan = {
+      subject: "s",
+      commit: "e".repeat(40),
+      roles: ["a‮b"],
+      mode: "specialized-role",
+      evidence: [],
+      concurrency: 1,
+      provider: "p\u001b]0;pwned\u0007",
+      model: "m\u009b31m",
+      thinking: "t​",
+      outputDir: "out",
+    } as const;
+    const job = {
+      reviewPassId: "rp-1",
+      subject: "s",
+      commit: plan.commit,
+      role: "a‮b",
+      mode: "specialized-role",
+      outputPath: "out/a‮b.verdict.json",
+    } as const;
+    const lines: string[] = [];
+    const io = {
+      log: (line: string) => lines.push(line),
+      error: (line: string) => lines.push(line),
+    };
+    announceCampaign(
+      { run: [job], skipped: [job], collisions: [] },
+      { plan: { ...plan, roles: [...plan.roles], evidence: [] }, dryRun: true, io },
+    );
+    announceCampaign(
+      { run: [job], skipped: [], collisions: [job] },
+      { plan: { ...plan, roles: [...plan.roles], evidence: [] }, dryRun: true, io },
+    );
+    const terminal = lines.join("\n");
+    expect(terminal).toContain("\\u202e");
+    expect(terminal).toContain("\\u001b]0;pwned");
+    expect(hasRawControl(terminal)).toBe(false);
     held += 1;
   });
 });
