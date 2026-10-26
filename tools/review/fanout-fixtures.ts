@@ -116,7 +116,10 @@ if (mode === "reply") {
     reply = reply.replaceAll("{{" + name + "}}", literal(name) ?? "");
   }
   console.log(reply);
-  process.exit(0);
+  const stderrFile = join(here, "reply-stderr");
+  if (existsSync(stderrFile)) process.stderr.write(readFileSync(stderrFile, "utf8"));
+  const exitFile = join(here, "reply-exit");
+  process.exit(existsSync(exitFile) ? Number(readFileSync(exitFile, "utf8")) : 0);
 }
 if (mode === "exit1") {
   console.error("fake pi: provider refused");
@@ -263,9 +266,24 @@ export async function setFakePiMode(fixture: Fixture, mode: string): Promise<voi
   await writeFile(join(fixture.binDir, "mode"), mode);
 }
 
-/** Script the stand-in's whole reply, for callers that run in this process. */
-export async function setFakePiReply(fixture: Fixture, reply: string): Promise<void> {
+/**
+ * Script the stand-in's whole reply, for callers that run in this process:
+ * its standard output, and optionally its error output and exit code.
+ */
+export async function setFakePiReply(
+  fixture: Fixture,
+  reply: string,
+  options: { readonly stderr?: string; readonly exitCode?: number } = {},
+): Promise<void> {
   await writeFile(join(fixture.binDir, "reply"), reply);
+  await rm(join(fixture.binDir, "reply-stderr"), { force: true });
+  await rm(join(fixture.binDir, "reply-exit"), { force: true });
+  if (options.stderr !== undefined) {
+    await writeFile(join(fixture.binDir, "reply-stderr"), options.stderr);
+  }
+  if (options.exitCode !== undefined) {
+    await writeFile(join(fixture.binDir, "reply-exit"), String(options.exitCode));
+  }
   await setFakePiMode(fixture, "reply");
 }
 

@@ -386,6 +386,27 @@ export function extractVerdict(output: string): unknown {
   }
 }
 
+// C0 controls but the line feed, DEL, and C1 controls. Measured on this code:
+// the reviewPassId and role mismatch messages below echo a value of the model
+// (the schema asks only for a non-empty string), and a failed pass carries the
+// error output of `pi`; an escape sequence in either would reach the operator's
+// terminal (window title, OSC 52 clipboard). The mismatch messages for mode and
+// commitSha, and the schema messages, carry closed values only.
+// \p{Cc} is exactly C0, DEL and C1; the class keeps the line feed out of it.
+const UNSAFE_CONTROLS = /[^\P{Cc}\n]/gu;
+
+/**
+ * Untrusted text made safe to print: every control character but the line
+ * feed becomes its visible `\uXXXX` spelling, so nothing is lost and nothing
+ * is interpreted by a terminal.
+ */
+export function neutralizeControls(text: string): string {
+  return text.replace(
+    UNSAFE_CONTROLS,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
 export function validateVerdict(candidate: unknown, job: ReviewJob): string[] {
   const errors: string[] = [];
   if (!validateAgainstSchema(candidate)) {

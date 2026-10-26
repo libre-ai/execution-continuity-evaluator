@@ -204,6 +204,25 @@ describe("vector 1: a trapped verdict obtains no effect", () => {
     expectNoTrappedEffect(campaign, a);
     held += 1;
   });
+
+  test.each(
+    DRIVERS,
+  )("%s driver: a verdict that claims another pass id, and nothing else, is refused", async (driver: DriverName) => {
+    started += 1;
+    const a = await arena();
+    // Role, mode and commit are right: only the pass-id equality can refuse it.
+    await setFakePiReply(a.fixture, replyWith({ reviewPassId: "rp-forged" }));
+    const campaign = await runRealCampaign(a.fixture, driver, driver);
+
+    expect(campaign.outcome.failed).toBe(ROLES.length);
+    for (const result of campaign.outcome.results) {
+      expect(result.errors).toEqual([
+        `reviewPassId mismatch: expected ${result.job.reviewPassId}, got rp-forged`,
+      ]);
+    }
+    expect(campaign.outputFiles).toEqual(["events.jsonl"]);
+    held += 1;
+  });
 });
 
 describe("vector 1: effect arguments derive from the plan, under a policy", () => {

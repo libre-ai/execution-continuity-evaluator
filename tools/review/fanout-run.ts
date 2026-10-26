@@ -11,6 +11,7 @@ import {
   dedupeJobs,
   extractVerdict,
   guardEvidence,
+  neutralizeControls,
   parseJournalLines,
   type ReviewEvent,
   type ReviewEventType,
@@ -330,7 +331,8 @@ export function printResults(results: readonly JobResult[], io: CampaignIo = con
     } else {
       failed += 1;
       io.error(`FAIL ${result.job.role} (${result.durationMs} ms)`);
-      for (const error of result.errors) io.error(`     ${error}`);
+      // Errors carry text of the model and of `pi`: neutralised before the terminal.
+      for (const error of result.errors) io.error(`     ${neutralizeControls(error)}`);
     }
   }
   if (failed > 0) io.error(`${failed}/${results.length} pass(es) failed`);
