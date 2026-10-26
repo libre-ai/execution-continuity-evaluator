@@ -9,9 +9,12 @@ import { join, resolve } from "node:path";
 // their red vectors pass (ADR-0045 decision 4), and ADR-0058 section 3
 // condition 4 adds the egress vector: "a harness that does not produce this
 // refusal does not activate the worker". Work package WP-2 ships the runtime;
-// WP-3 ships the proofs of INV-a to INV-c (tools/review/vectors), WP-4 the
-// egress, adaptive-attack and confinement proofs. Until every condition holds,
-// the LangGraph path answers `--dry-run` and refuses everything else. The sixth
+// WP-3 ships the proofs of INV-a to INV-c (tools/review/vectors). The
+// conditions still unmet each name their own package: WP-4 the egress proof
+// (telemetry-egress-refused) and the confinement proof (pass-read-confined),
+// WP-7 the adaptive-attack proof (adaptive-attacks), since the owner split WP-4
+// on 2026-10-26. Until every condition holds, the LangGraph path answers
+// `--dry-run` and refuses everything else. The sixth
 // condition (owner decision of 2026-10-24, CA-32) binds the default path too:
 // it refuses real passes until a pass cannot read outside its worktree
 // (`defaultDriverRefusal`, applied by `runCampaignDirect` itself).
@@ -102,7 +105,7 @@ export const LANGGRAPH_ACTIVATION_CONDITIONS: readonly ActivationCondition[] = f
     id: "adaptive-attacks",
     requirement: "adaptive attack suite, utility and attack success rates reported together",
     source: "ADR-0045 consequences (vector 4), CA-31",
-    workPackage: "WP-4",
+    workPackage: "WP-7",
     satisfied: false,
     evidence: null,
   },

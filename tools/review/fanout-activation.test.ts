@@ -29,10 +29,11 @@ const condition = (overrides: Partial<ActivationCondition>): ActivationCondition
 });
 
 describe("activation conditions", () => {
-  test("the three conditions of WP-4 are still unmet, so the refusal still stands", () => {
+  test("the conditions of WP-4 and WP-7 are still unmet, so the refusal still stands", () => {
+    // WP-4 was split on 2026-10-26: CA-31 (adaptive attacks) moved to WP-7.
     expect(unmetConditions().map((c) => `${c.id}:${c.workPackage}`)).toEqual([
       "telemetry-egress-refused:WP-4",
-      "adaptive-attacks:WP-4",
+      "adaptive-attacks:WP-7",
       "pass-read-confined:WP-4",
     ]);
     expect(LANGGRAPH_ACTIVATION_CONDITIONS).toHaveLength(6);
@@ -196,7 +197,7 @@ describe("activation conditions", () => {
     expect(message).toContain("3 of 6 activation condition(s) unmet");
     expect(message).not.toContain("INV-a");
     expect(message).toContain("ADR-0058 section 3 condition 4, CA-22; delivered by WP-4");
-    expect(message).toContain("ADR-0045 consequences (vector 4), CA-31; delivered by WP-4");
+    expect(message).toContain("ADR-0045 consequences (vector 4), CA-31; delivered by WP-7");
     expect(message).toContain("- pass-read-confined:");
     expect(message).toContain("--dry-run is available on this runtime");
   });
