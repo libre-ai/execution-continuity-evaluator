@@ -1,6 +1,6 @@
 import { createHash, getRandomValues, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { appendFile, lstat, mkdir, mkdtemp, open, rm } from "node:fs/promises";
+import { type FileHandle, lstat, mkdir, mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EnvelopeKey } from "@libre-ai/envelope";
@@ -99,15 +99,20 @@ export async function refuseLinks(root: string, relativePath: string): Promise<v
   }
 }
 
+/** Where journal lines go: one descriptor held for the whole campaign (openCampaign). */
+export interface JournalSink {
+  append(line: string): Promise<void>;
+}
+
 /**
  * Append-only JSONL journal, written while passes run rather than at the end.
  *
- * One line per event, appended in `a` mode: concurrent passes each write a
- * single short line, which POSIX append keeps atomic at this size. Nothing here
- * buffers — a hung or killed pass is exactly when the journal earns its keep,
- * and it would flush nothing at exit.
+ * One line per event, appended through a descriptor opened with O_APPEND:
+ * concurrent passes each write a single short line, which POSIX append keeps
+ * atomic at this size. Nothing here buffers — a hung or killed pass is exactly
+ * when the journal earns its keep, and it would flush nothing at exit.
  */
-export function journalWriter(path: string, job: ReviewJob): Emit {
+export function journalWriter(sink: JournalSink, job: ReviewJob): Emit {
   return async (type, detail, span) => {
     const now = new Date().toISOString();
     const event: ReviewEvent = {
@@ -118,7 +123,7 @@ export function journalWriter(path: string, job: ReviewJob): Emit {
       ...(span === undefined ? {} : { endedAt: now }),
       ...(detail === undefined ? {} : { detail }),
     };
-    await appendFile(path, `${JSON.stringify(event)}\n`, { flag: APPEND_NO_LINK });
+    await sink.append(`${JSON.stringify(event)}\n`);
   };
 }
 
@@ -273,21 +278,36 @@ export async function openCampaign(
   const evidenceDigest = await buildEvidenceDigest(plan, envelopeKey, repoDir);
   const worktreeBase = await mkdtemp(join(tmpdir(), "review-fanout-"));
   const journalPath = join(repoDir, journalRelative);
+  // The journal is opened once, after the last link check, and every event is
+  // appended through that descriptor: a parent of outputDir renamed or
+  // replaced by a link during the campaign no longer redirects the events
+  // that follow, since an open descriptor holds the file, not its path (a
+  // reopen per event put 57 events in a trap, review round 2). O_NOFOLLOW
+  // guards the last component at the one open.
+  let journal: FileHandle;
+  try {
+    await refuseLinks(repoDir, journalRelative);
+    journal = await open(journalPath, APPEND_NO_LINK);
+  } catch (cause) {
+    await rm(worktreeBase, { recursive: true, force: true });
+    throw cause;
+  }
+  const sink: JournalSink = {
+    append: async (line) => {
+      await journal.write(line);
+    },
+  };
   return {
     journalPath,
     runPass: (job) =>
-      runJob(
-        plan,
-        job,
-        worktreeBase,
-        evidenceDigest,
-        journalWriter(journalPath, job),
-        repoDir,
-        piBinary,
-      ),
+      runJob(plan, job, worktreeBase, evidenceDigest, journalWriter(sink, job), repoDir, piBinary),
     dispose: async () => {
-      await rm(worktreeBase, { recursive: true, force: true });
-      await git(["worktree", "prune"], repoDir);
+      try {
+        await journal.close();
+      } finally {
+        await rm(worktreeBase, { recursive: true, force: true });
+        await git(["worktree", "prune"], repoDir);
+      }
     },
   };
 }

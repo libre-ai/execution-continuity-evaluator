@@ -14,6 +14,7 @@ import {
   type RealCampaign,
   runRealCampaign,
   setFakePiReply,
+  setFakePiSwap,
 } from "../fanout-fixtures";
 
 // Vector 1 of ADR-0045 for INV-b (CA-27): provenance by value, policy on the
@@ -348,6 +349,36 @@ describe("vector 1: the orchestrator never writes through a link", () => {
     const alpha = campaign.outcome.results.find((result) => result.job.role === "alpha");
     expect(alpha?.ok).toBe(false);
     expect(typesOf(campaign, "alpha")).not.toContain("verdict_recorded");
+    held += 1;
+  });
+
+  test.each(
+    DRIVERS,
+  )("%s driver: an output directory swapped for a link mid-campaign redirects no event", async (driver: DriverName) => {
+    started += 1;
+    const a = await arena();
+    await setFakePiReply(a.fixture, replyWith({}));
+    // The race of the round-2 review: once the first events are written, a
+    // local process renames the output directory and puts a link to the
+    // trap in its place, then the campaign goes on.
+    const outputDir = join(a.fixture.dir, "out", driver);
+    const moved = `${outputDir}-moved`;
+    await setFakePiSwap(a.fixture, { from: outputDir, to: moved, link: a.trap });
+    const campaign = await runRealCampaign(a.fixture, driver, driver);
+
+    expect(readdirSync(a.trap)).toEqual([]);
+    // Every event reached the journal the campaign opened, now under its new name.
+    const events = (await Bun.file(join(moved, "events.jsonl")).text())
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as { role: string; type: string });
+    for (const role of ROLES) {
+      const types = events.filter((event) => event.role === role).map((event) => event.type);
+      expect([role, types.includes("agent_call"), types.at(-1)]).toEqual([role, true, "pass_end"]);
+    }
+    // The verdict write meets the link and is refused (the residual window of
+    // the verdict write is a different case: see the pull request).
+    expect(campaign.outcome.failed).toBe(ROLES.length);
     held += 1;
   });
 });

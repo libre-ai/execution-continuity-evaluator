@@ -99,7 +99,7 @@ async function git(dir: string, args: string[]): Promise<string> {
 // {{role}}, {{mode}} and {{commitSha}} replaced by the pinned literals: a
 // hostile reviewer scripted byte for byte (tools/review/vectors).
 const FAKE_PI_SOURCE = `#!/usr/bin/env bun
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, readFileSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 const here = dirname(process.argv[1]);
 const prompt = process.argv.at(-1) ?? "";
@@ -109,6 +109,17 @@ appendFileSync(
   JSON.stringify({ cwd: process.cwd(), argv: process.argv.slice(2, -1), prompt }) + "\\n",
 );
 const literal = (name) => new RegExp(name + ' \\\\(exactly "([^"]+)"\\\\)').exec(prompt)?.[1];
+// The race of the round-2 review: the file "swap" next to the stand-in names a
+// directory to rename and a target; the first invocation that finds the
+// directory renames it and puts a link to the target in its place.
+const swapFile = join(here, "swap");
+if (existsSync(swapFile)) {
+  const swap = JSON.parse(readFileSync(swapFile, "utf8"));
+  if (existsSync(swap.from) && !lstatSync(swap.from).isSymbolicLink()) {
+    renameSync(swap.from, swap.to);
+    symlinkSync(swap.link, swap.from);
+  }
+}
 const modeFile = join(here, "mode");
 const mode =
   process.env.FAKE_PI_MODE ?? (existsSync(modeFile) ? readFileSync(modeFile, "utf8").trim() : "approve");
@@ -287,6 +298,17 @@ export async function setFakePiReply(
     await writeFile(join(fixture.binDir, "reply-exit"), String(options.exitCode));
   }
   await setFakePiMode(fixture, "reply");
+}
+
+/**
+ * Make the first stand-in invocation rename `from` to `to` and put a link to
+ * `link` in its place: a local process racing the campaign.
+ */
+export async function setFakePiSwap(
+  fixture: Fixture,
+  swap: { readonly from: string; readonly to: string; readonly link: string },
+): Promise<void> {
+  await writeFile(join(fixture.binDir, "swap"), JSON.stringify(swap));
 }
 
 export interface PiInvocation {
