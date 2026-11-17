@@ -312,7 +312,7 @@ Cadres réglementaires de CADRAGE section 1.3, marqués un par un.
 
 ### 7.1 Entrées
 
-| Entrée | Format | Autorité | Statut au pin `a82d7b54` |
+| Entrée | Format | Autorité | Statut au pin `5ed1f716` |
 | --- | --- | --- | --- |
 | commande de contrôle | `orchestrator-control.v1.schema.json` | `schemas-and-contracts` | `locked` |
 | graphe autorisé | `execution-graph.v1.schema.json` | idem | `locked` |
@@ -325,7 +325,7 @@ Cadres réglementaires de CADRAGE section 1.3, marqués un par un.
 | faits de l'appelant | types Rust `RunControlState`, `StartPreflight`, `CommandCollisionObservation`, `EventStoreObservation`, `EffectObservation`, `TransferObservation`, `DecisionObservation`, `EventCollisionObservation`, `ToolObservationInput`, trait `HarnessSignatureVerifier` | ce dépôt | épinglés par `public_surface.snapshot` |
 | horodatage d'évaluation | chaîne RFC 3339 fournie par l'appelant (`control.rs:284-301`, `transfer.rs:161`) | — | — |
 
-Statuts : `git -C .clones/schemas-and-contracts show a82d7b54:contracts/catalog.v1.json`, puis
+Statuts : `git -C .clones/schemas-and-contracts show 5ed1f716:contracts/catalog.v1.json`, puis
 `jq -r '.contracts[]|"\(.id) \(.status)"'`.
 
 ### 7.2 Sorties
@@ -502,7 +502,7 @@ ne l'exige pas et le domaine Rust d'`ai-work-supervision` n'importe aucun contra
 
 | Dépendance | Forme | Révision | Source |
 | --- | --- | --- | --- |
-| `schemas-and-contracts` — crate `libre-ai-contract-types` | git-dep cargo | `a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e` | `Cargo.toml:15` |
+| `schemas-and-contracts` — crate `libre-ai-contract-types` | git-dep cargo | `5ed1f716d0061117b4a59935b5558384612a2914` | `Cargo.toml:15` |
 | `schemas-and-contracts` — `@libre-ai/contracts-authority` | `file:../schemas-and-contracts` | checkout frère de la composition | `package.json:16` |
 | `schemas-and-contracts` — `@libre-ai/envelope` | `file:../../../schemas-and-contracts/packages/envelope` | idem | `tools/review/package.json:12` |
 | `project-governance` — `@libre-ai/governance` (gates) | `file:../project-governance` | idem | `package.json:12,15` |
@@ -512,6 +512,13 @@ ne l'exige pas et le domaine Rust d'`ai-work-supervision` n'importe aucun contra
 arrière (`git -C .clones/schemas-and-contracts merge-base --is-ancestor a82d7b54 HEAD`, puis
 `git log --oneline a82d7b54..HEAD`, puis `wc -l`). Trois révisions de l'autorité coexistent dans la
 flotte (E16, `synthese.md` section 3.2) ; ce dépôt est sur la plus récente des trois.
+
+2026-11-17 : le pin passe à `5ed1f716`, descendant de `a82d7b54`
+(`git merge-base --is-ancestor a82d7b54 5ed1f716`). Entre les deux, le catalogue gagne 15 contrats
+`candidate` et n'en retire ni n'en change aucun (`diff` des deux sorties de la commande de la
+section 7.1) : les statuts de la section 7.1 sont inchangés. `crates/sdk-rs` n'y gagne que des
+fichiers (`git diff --stat a82d7b54 5ed1f716 -- crates/sdk-rs` : 18 fichiers, 0 suppression), et
+`decision-binding-vectors.v1.json` y est présent (CA-15).
 
 Contrats **partagés** avec les deux autres composants de la fabrique (addendum du mandat), relevés
 par `grep -rhoE '(execution-authorization|missions|harness-profile|execution-plan-body|orchestrator-event|harness-attestation)[.-]v[0-9]+' .clones/DEPOT --include='*.md' --include='*.json' --exclude-dir=node_modules`
