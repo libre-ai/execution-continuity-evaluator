@@ -38,12 +38,12 @@ describe("authorized execution authority", () => {
 
   test("local SDK bytes match the reviewed current composition", async () => {
     const pinPath = "docs/dependency-inputs/sdk-input-pin.json";
-    // Regenerated for schemas-and-contracts@a82d7b54, the revision composed by
-    // governance generation Q (5ef12472), which descends from 197d8299
-    // (tool-invocation-observation candidate, ADR-0046): every tracked file of
+    // Regenerated for schemas-and-contracts@5ed1f716, the revision the
+    // governance composition composes after a82d7b54 (strict_json, signing-keys
+    // and artifact-manifest-signatures candidates): every tracked file of
     // crates/sdk-rs at that revision.
     expect(await sha256(pinPath)).toBe(
-      "e8e831a01a98d0218921faefaf6f8f365360cc82e0e3fd61e56a2a6b14de0b01",
+      "1b2ac175df60b1ab14558e63c1206fad1972dab7574190a7d91a048945ea49d2",
     );
     const pin: { origin: string; files: Array<{ path: string; sha256: string }> } =
       await Bun.file(pinPath).json();

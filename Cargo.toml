@@ -12,7 +12,7 @@ path = "src/lib.rs"
 
 [dependencies]
 chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"] }
-libre-ai-contract-types = { version = "=0.1.0", git = "https://github.com/libre-ai/schemas-and-contracts", rev = "a82d7b54cfda00bfcbbdff34a3c34f24a2468a6e" }
+libre-ai-contract-types = { version = "=0.1.0", git = "https://github.com/libre-ai/schemas-and-contracts", rev = "5ed1f716d0061117b4a59935b5558384612a2914" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_jcs = "=0.2.0"
 serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
