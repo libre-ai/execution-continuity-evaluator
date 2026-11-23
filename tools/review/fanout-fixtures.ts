@@ -195,14 +195,74 @@ export async function makeFixture(roles: readonly string[] = ["alpha", "beta"]):
   };
 }
 
+export const FIXTURE_RULES_PATH = "docs/reviews/rules.v1.json";
+
+export interface CoverageFixture extends Fixture {
+  /** The commit the coverage diff starts from; it carries the review rules. */
+  readonly base: string;
+}
+
+/**
+ * A fixture with a coverage diff: the base commit adds review rules with one
+ * zone; the head commit rewrites those rules to exclude everything (so a run
+ * that read rules from the head would review nothing), renames the subject,
+ * and writes `headFiles`. The plan reviews the head with `coverage.base`.
+ */
+export async function makeCoverageFixture(
+  roles: readonly string[] = ["alpha"],
+  headFiles: Readonly<Record<string, string | Uint8Array>> = {
+    "src/app.ts": "export const guard = true;\n",
+    ".env": "TOKEN=fixture-secret-value\n",
+    "assets/logo.bin": new Uint8Array([0, 1, 2, 0, 255, 0]),
+  },
+): Promise<CoverageFixture> {
+  const fixture = await makeFixture(roles);
+  const rules = (zones: unknown[], exclude: unknown[]) =>
+    `${JSON.stringify({ schema: "review-rules.v1", maxPatchBytes: 100000, exclude, zones })}\n`;
+  await mkdir(join(fixture.dir, dirname(FIXTURE_RULES_PATH)), { recursive: true });
+  await writeFile(
+    join(fixture.dir, FIXTURE_RULES_PATH),
+    rules([{ pattern: "src/**", guidance: "Source: the guard must hold." }], []),
+  );
+  await git(fixture.dir, ["add", FIXTURE_RULES_PATH]);
+  await git(fixture.dir, ["commit", "--quiet", "-m", "rules"]);
+  const base = await git(fixture.dir, ["rev-parse", "HEAD"]);
+
+  await writeFile(
+    join(fixture.dir, FIXTURE_RULES_PATH),
+    rules([], [{ pattern: "**", note: "the author excludes everything" }]),
+  );
+  await git(fixture.dir, ["mv", "subject.txt", "notes-subject.txt"]);
+  for (const [path, content] of Object.entries(headFiles)) {
+    await mkdir(join(fixture.dir, dirname(path)), { recursive: true });
+    await writeFile(join(fixture.dir, path), content);
+  }
+  await git(fixture.dir, ["add", FIXTURE_RULES_PATH, ...Object.keys(headFiles)]);
+  await git(fixture.dir, ["commit", "--quiet", "-m", "head"]);
+  const head = await git(fixture.dir, ["rev-parse", "HEAD"]);
+
+  const plan = await Bun.file(fixture.planPath).json();
+  await writeFile(
+    fixture.planPath,
+    JSON.stringify({ ...plan, commit: head, evidence: ["notes-subject.txt"], coverage: { base } }),
+  );
+  return { ...fixture, commit: head, base };
+}
+
 /** Environment for a child process: the fake `pi` first on PATH. */
 export function fixtureEnv(
   fixture: Fixture,
   extra: Record<string, string> = {},
 ): Record<string, string> {
+  // TMPDIR is passed on so the child's scratch worktrees land where the parent
+  // may write: without it the child falls back to /tmp, which a sandboxed run
+  // refuses (EPERM on mkdtemp), and every real campaign then fails for a
+  // reason that has nothing to do with the code under test.
+  const tmp = process.env.TMPDIR;
   return {
     PATH: `${fixture.binDir}:${process.env.PATH ?? ""}`,
     HOME: process.env.HOME ?? fixture.dir,
+    ...(tmp === undefined ? {} : { TMPDIR: tmp }),
     FAKE_PI_LOG: fixture.piLog,
     ...extra,
   };
