@@ -5,6 +5,7 @@ import {
   disposeFixture,
   type Fixture,
   fixtureGit,
+  makeCoverageFixture,
   makeFixture,
   normalizeOutput,
   piInvocations,
@@ -65,6 +66,9 @@ describe("fanout.ts (default path)", () => {
     expect(result.stdout).toContain("events across 2 pass(es)");
     expect(result.stdout).toMatch(/ok {3}alpha \(\d+ ms\)/);
     expect(await worktreeCount(f)).toBe(1);
+    // No coverage.base in the plan: passes succeeded, the review is not declared complete.
+    expect(result.stderr).toContain("coverage: no manifest");
+    expect(result.stderr).toContain("not declared complete");
   });
 
   test("--dry-run lists the passes, runs no pi, writes nothing", async () => {
@@ -149,5 +153,72 @@ describe("fanout.ts (default path)", () => {
     const f = await fixture(["alpha"]);
     await runCli(f, [f.planPath]);
     expect(await fixtureGit(f.dir, ["status", "--porcelain"])).toBe("");
+  });
+});
+
+describe("fanout.ts with coverage.base", () => {
+  async function coverageFixture(): Promise<Fixture> {
+    const created = await makeCoverageFixture();
+    fixtures.push(created);
+    return created;
+  }
+
+  test("--dry-run prints the sealed scope, file by file, and writes nothing", async () => {
+    const f = await coverageFixture();
+    const result = await runCli(f, [f.planPath, "--dry-run"]);
+
+    expect(result.exitCode).toBe(0);
+    const lines = result.stdout.split("\n");
+    expect(lines[0]).toMatch(
+      /^coverage sealed: 3 selected, 2 excluded \(binary 1, secret_path 1\); rules docs\/reviews\/rules\.v1\.json@[0-9a-f]{40} \(sha256 [0-9a-f]{12}\); review [0-9a-f]{12}$/,
+    );
+    expect(lines.slice(1, 6)).toEqual([
+      '- review "docs/reviews/rules.v1.json"',
+      '- review "notes-subject.txt"',
+      '- review "src/app.ts" [zone "src/**"]',
+      '- exclude ".env": secret_path',
+      '- exclude "assets/logo.bin": binary',
+    ]);
+    expect(await piInvocations(f)).toEqual([]);
+    expect(existsSync(f.outputDir)).toBe(false);
+  });
+
+  test("a campaign whose passes all succeed writes a complete manifest and exits 0", async () => {
+    const f = await coverageFixture();
+    const result = await runCli(f, [f.planPath]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain(
+      "coverage complete: 3 selected — 3 reviewed, 0 reused, 0 failed",
+    );
+    const manifest = await Bun.file(join(f.outputDir, "coverage.manifest.json")).json();
+    expect(manifest.status).toBe("complete");
+    expect(manifest.files.map((file: { path: string }) => file.path)).toEqual([
+      "docs/reviews/rules.v1.json",
+      "notes-subject.txt",
+      "src/app.ts",
+    ]);
+  });
+
+  test("a diff that selects nothing is not a complete review, even with every pass green", async () => {
+    const f = await coverageFixture();
+    const plan = await Bun.file(f.planPath).json();
+    await Bun.write(f.planPath, JSON.stringify({ ...plan, coverage: { base: f.commit } }));
+    const result = await runCli(f, [f.planPath]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/ok {3}alpha/);
+    expect(result.stderr).toContain("coverage empty: 0 selected");
+    expect(result.stderr).toContain("not declared complete");
+  });
+
+  test("a coverage request with an unknown base is refused before any pass", async () => {
+    const f = await coverageFixture();
+    const plan = await Bun.file(f.planPath).json();
+    await Bun.write(f.planPath, JSON.stringify({ ...plan, coverage: { base: "1".repeat(40) } }));
+    const result = await runCli(f, [f.planPath]);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(await piInvocations(f)).toEqual([]);
   });
 });
