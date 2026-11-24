@@ -19,8 +19,18 @@
 [graph]
 all-features = true
 
+# waiver-review-anchor: 2026-11-24
 [advisories]
 yanked = "deny"
+# Written out so the verdict does not move with the tool's default, which
+# changes from "all" to "workspace" in cargo-deny 0.22.0.
+unmaintained = "all"
+# Waivers follow docs/security/ADVISORY-WAIVER-POLICY.md of
+# libre-ai/project-governance: one entry per advisory, with an expiry and a
+# reference, checked by tools/quality/check-advisory-waivers.ts.
+ignore = [
+  { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained and the advisory lists no patched version; chrono is an exact direct dependency here and is also required by libre-ai-contract-types, which is consumed at a pinned git rev; expires=2027-02-22; ref=https://rustsec.org/advisories/RUSTSEC-2026-0543" },
+]
 
 [licenses]
 confidence-threshold = 0.9
